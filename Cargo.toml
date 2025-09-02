@@ -15,12 +15,12 @@ thiserror = "1.0"
 tracing = "0.1"
 tokio = { version = "1.0", features = ["full"] }
 rand = "0.8"
+hex = "0.4"
 
 # ZHTP package dependencies
 lib-crypto = { path = "../lib-crypto" }
 lib-identity = { path = "../lib-identity" }
-# lib-dht = { path = "../lib-dht" }  # TODO: Implement storage module
-lib-network = { path = "../lib-network" }
+# lib-storage = { path = "../lib-storage" }  # TODO: Implement storage module
 lib-proofs = { path = "../lib-proofs" }
 
 # Time handling

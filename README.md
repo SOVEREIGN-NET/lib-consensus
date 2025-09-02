@@ -217,7 +217,7 @@ println!("Byzantine threshold: {} voting power", threshold);
 
 - `lib-crypto`: Post-quantum cryptography and hashing
 - `lib-identity`: Identity management and verification
-- `lib-dht`: Distributed storage integration
+- `lib-storage`: Distributed storage integration
 - `lib-network`: Network communication protocols
 - `lib-proofs`: Zero-knowledge proof systems
 

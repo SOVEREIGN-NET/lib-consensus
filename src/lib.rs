@@ -17,6 +17,7 @@ pub mod rewards;
 // Re-export commonly used types
 pub use types::*;
 pub use engines::ConsensusEngine;
+pub use engines::enhanced_bft_engine::{EnhancedBftEngine, ConsensusStatus};
 pub use validators::{Validator, ValidatorManager};
 pub use proofs::*;
 
@@ -63,7 +64,7 @@ pub enum ConsensusError {
     IdentityError(String),
     
     // #[error("Storage error: {0}")]
-    // StorageError(#[from] lib_dht::StorageError),  // TODO: Uncomment when storage is implemented
+    // StorageError(#[from] lib_storage::StorageError),  // TODO: Uncomment when storage is implemented
     
     #[error("Network error: {0}")]
     NetworkError(String),

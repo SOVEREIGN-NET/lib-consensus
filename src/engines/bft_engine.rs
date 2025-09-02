@@ -8,6 +8,7 @@ use lib_crypto::{Hash, hash_blake3};
 use lib_identity::IdentityId;
 
 use crate::types::{
+    ConsensusEvent, // Add this import
     ConsensusRound, ConsensusStep, ConsensusProposal, ConsensusVote, 
     VoteType, ConsensusConfig, NetworkState
 };
@@ -69,8 +70,42 @@ impl BftEngine {
         self.validator_identity = Some(identity);
     }
 
-    /// Start BFT consensus
-    pub async fn start_consensus(&mut self, height: u64, previous_hash: Hash) -> ConsensusResult<()> {
+    /// Handle consensus event (pure component method)
+    /// This replaces the standalone start_consensus() loop pattern
+    pub async fn handle_consensus_event(&mut self, event: ConsensusEvent) -> ConsensusResult<Vec<ConsensusEvent>> {
+        match event {
+            ConsensusEvent::StartRound { height, trigger } => {
+                self.prepare_for_round(height).await?;
+                Ok(vec![ConsensusEvent::RoundPrepared { height }])
+            }
+            ConsensusEvent::NewBlock { height, previous_hash } => {
+                match self.run_consensus_round(previous_hash).await {
+                    Ok(Some(committed_hash)) => {
+                        Ok(vec![ConsensusEvent::RoundCompleted { height }])
+                    }
+                    Ok(None) => {
+                        Ok(vec![ConsensusEvent::RoundFailed { 
+                            height, 
+                            error: "No consensus reached".to_string() 
+                        }])
+                    }
+                    Err(e) => {
+                        Ok(vec![ConsensusEvent::RoundFailed { 
+                            height, 
+                            error: e.to_string() 
+                        }])
+                    }
+                }
+            }
+            _ => {
+                tracing::debug!("Unhandled BFT consensus event: {:?}", event);
+                Ok(vec![])
+            }
+        }
+    }
+
+    /// Prepare for a consensus round (internal method)
+    async fn prepare_for_round(&mut self, height: u64) -> ConsensusResult<()> {
         // Initialize new height
         self.current_round.height = height;
         self.current_round.round = 0;
@@ -84,30 +119,8 @@ impl BftEngine {
         self.current_round.locked_proposal = None;
         self.current_round.valid_proposal = None;
 
-        tracing::info!("🚀 Starting BFT consensus at height {}", height);
-
-        // Run consensus rounds until we reach agreement
-        loop {
-            match self.run_consensus_round(previous_hash.clone()).await {
-                Ok(Some(committed_proposal)) => {
-                    tracing::info!(
-                        "✅ BFT consensus reached for height {} with proposal {:?}",
-                        height, committed_proposal
-                    );
-                    break Ok(());
-                }
-                Ok(None) => {
-                    // Round failed, try next round
-                    self.advance_to_next_round().await?;
-                    continue;
-                }
-                Err(e) => {
-                    tracing::error!("BFT consensus round failed: {}", e);
-                    self.advance_to_next_round().await?;
-                    continue;
-                }
-            }
-        }
+        tracing::info!("🚀 Prepared BFT consensus for height {}", height);
+        Ok(())
     }
 
     /// Run a single BFT consensus round

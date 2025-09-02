@@ -118,40 +118,80 @@ impl ConsensusEngine {
         Ok(())
     }
 
-    /// Start consensus process
-    pub async fn start_consensus(&mut self) -> ConsensusResult<()> {
+    /// Process a single consensus event (pure component method)
+    /// This replaces the standalone start_consensus() loop pattern
+    pub async fn handle_consensus_event(&mut self, event: ConsensusEvent) -> ConsensusResult<Vec<ConsensusEvent>> {
+        match event {
+            ConsensusEvent::StartRound { height, trigger } => {
+                self.prepare_consensus_round(height).await?;
+                Ok(vec![ConsensusEvent::RoundPrepared { height }])
+            }
+            ConsensusEvent::NewBlock { height, previous_hash } => {
+                match self.run_consensus_round().await {
+                    Ok(_) => {
+                        let mut events = vec![ConsensusEvent::RoundCompleted { height }];
+                        
+                        // Process DAO proposals
+                        if let Err(e) = self.dao_engine.process_expired_proposals().await {
+                            tracing::warn!("DAO processing error: {}", e);
+                            events.push(ConsensusEvent::DaoError { error: e.to_string() });
+                        }
+                        
+                        // Check for Byzantine faults
+                        if let Err(e) = self.byzantine_detector.detect_faults(&self.validator_manager) {
+                            tracing::warn!("Byzantine fault detection error: {}", e);
+                            events.push(ConsensusEvent::ByzantineFault { error: e.to_string() });
+                        }
+                        
+                        // Calculate and distribute rewards
+                        if let Err(e) = self.reward_calculator.calculate_round_rewards(&self.validator_manager, self.current_round.height) {
+                            tracing::warn!("Reward calculation error: {}", e);
+                            events.push(ConsensusEvent::RewardError { error: e.to_string() });
+                        }
+                        
+                        Ok(events)
+                    },
+                    Err(e) => {
+                        tracing::error!("Consensus round failed: {}", e);
+                        Ok(vec![ConsensusEvent::RoundFailed { height, error: e.to_string() }])
+                    }
+                }
+            }
+            ConsensusEvent::ValidatorJoin { identity, stake } => {
+                self.handle_validator_registration(identity.clone(), stake).await?;
+                Ok(vec![ConsensusEvent::ValidatorRegistered { identity }])
+            }
+            _ => {
+                tracing::debug!("Unhandled consensus event: {:?}", event);
+                Ok(vec![])
+            }
+        }
+    }
+
+    /// Prepare for a consensus round (internal method)
+    async fn prepare_consensus_round(&mut self, height: u64) -> ConsensusResult<()> {
         if !self.validator_manager.has_sufficient_validators() {
             return Err(ConsensusError::ValidatorError(
                 "Insufficient validators for consensus".to_string()
             ));
         }
 
-        tracing::info!("🚀 Starting ZHTP consensus engine");
+        tracing::info!("🚀 Preparing ZHTP consensus for height {}", height);
+        self.current_round.height = height;
+        Ok(())
+    }
 
-        // Start consensus rounds
-        loop {
-            match self.run_consensus_round().await {
-                Ok(_) => {
-                    // Process DAO proposals
-                    if let Err(e) = self.dao_engine.process_expired_proposals().await {
-                        tracing::warn!("DAO processing error: {}", e);
-                    }
-                    
-                    // Check for Byzantine faults
-                    self.byzantine_detector.detect_faults(&self.validator_manager)?;
-                    
-                    // Calculate and distribute rewards
-                    self.reward_calculator.calculate_round_rewards(&self.validator_manager, self.current_round.height)?;
-                },
-                Err(e) => {
-                    tracing::error!("Consensus round failed: {}", e);
-                    // Continue to next round even if current round fails
-                }
-            }
-
-            // Add delay based on block time
-            tokio::time::sleep(tokio::time::Duration::from_secs(self.config.block_time)).await;
-        }
+    /// Handle validator registration event
+    async fn handle_validator_registration(&mut self, identity: lib_identity::IdentityId, stake: u64) -> ConsensusResult<()> {
+        self.register_validator(
+            identity.clone(),
+            stake,
+            1024 * 1024 * 1024, // Default storage capacity
+            vec![0u8; 32], // Default consensus key
+            5, // Default commission rate
+            false, // Not genesis
+        ).await?;
+        Ok(())
     }
 
     /// Run a single consensus round
@@ -812,7 +852,7 @@ impl ConsensusEngine {
     /// Verify a signature
     async fn verify_signature(
         &self,
-        data: &[u8],
+        _data: &[u8],
         signature: &PostQuantumSignature,
     ) -> ConsensusResult<bool> {
         // In production, this would use proper post-quantum signature verification

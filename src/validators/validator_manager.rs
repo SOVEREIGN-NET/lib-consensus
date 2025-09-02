@@ -172,6 +172,27 @@ impl ValidatorManager {
             validator.update_activity();
         }
     }
+
+    /// Check if a validator exists and is active
+    pub fn is_validator(&self, identity: &IdentityId) -> bool {
+        self.validators.contains_key(identity) && 
+        self.validators.get(identity).map_or(false, |v| v.status == ValidatorStatus::Active)
+    }
+
+    /// Check if a validator is active at a specific height
+    pub fn is_validator_active(&self, identity: &IdentityId, _height: u64) -> bool {
+        self.is_validator(identity)
+    }
+
+    /// Get total number of validators
+    pub fn get_total_validators(&self) -> usize {
+        self.validators.len()
+    }
+
+    /// Get proposer for a specific round
+    pub fn get_proposer_for_round(&self, height: u64, round: u32) -> Option<&Validator> {
+        self.select_proposer(height, round)
+    }
     
     /// Process inactive validators
     pub fn process_inactive_validators(&mut self, max_inactive_seconds: u64) -> Result<Vec<IdentityId>> {

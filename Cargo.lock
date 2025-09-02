@@ -600,6 +600,83 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "lib-consensus"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dashmap",
+ "hex",
+ "indexmap",
+ "lib-crypto",
+ "lib-identity",
+ "lib-proofs",
+ "proptest",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "lib-crypto"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "chacha20poly1305",
+ "curve25519-dalek",
+ "ed25519-dalek",
+ "hex",
+ "hkdf",
+ "pqcrypto-dilithium",
+ "pqcrypto-kyber",
+ "pqcrypto-traits",
+ "rand 0.8.5",
+ "serde",
+ "sha3",
+ "zeroize",
+]
+
+[[package]]
+name = "lib-identity"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "blake3",
+ "hex",
+ "lib-crypto",
+ "lib-proofs",
+ "md5",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "lib-proofs"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "bincode",
+ "lib-crypto",
+ "log",
+ "num_cpus",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.175"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1333,17 +1410,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "uuid"
-version = "1.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f33196643e165781c20a5ead5582283a7dacbb87855d867fbc2df3f81eddc1be"
-dependencies = [
- "getrandom 0.3.3",
- "js-sys",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1712,96 +1778,4 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "lib-consensus"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "dashmap",
- "indexmap",
- "proptest",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-test",
- "tracing",
- "tracing-subscriber",
- "lib-crypto",
- "lib-identity",
- "lib-network",
- "lib-proofs",
-]
-
-[[package]]
-name = "lib-crypto"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "blake3",
- "chacha20poly1305",
- "curve25519-dalek",
- "ed25519-dalek",
- "hex",
- "hkdf",
- "pqcrypto-dilithium",
- "pqcrypto-kyber",
- "pqcrypto-traits",
- "rand 0.8.5",
- "serde",
- "sha3",
- "zeroize",
-]
-
-[[package]]
-name = "lib-identity"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "blake3",
- "hex",
- "md5",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tracing",
- "zeroize",
- "lib-crypto",
- "lib-proofs",
-]
-
-[[package]]
-name = "lib-network"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "hex",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
- "lib-crypto",
- "lib-proofs",
-]
-
-[[package]]
-name = "lib-proofs"
-version = "0.1.0"
-dependencies = [
- "ahash",
- "anyhow",
- "bincode",
- "num_cpus",
- "serde",
- "tracing",
- "lib-crypto",
 ]

@@ -257,3 +257,34 @@ pub enum SlashType {
     /// Invalid vote
     InvalidVote,
 }
+
+/// Consensus events for pure component communication
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ConsensusEvent {
+    /// Start a new consensus round
+    StartRound { height: u64, trigger: String },
+    /// New block available for consensus
+    NewBlock { height: u64, previous_hash: Hash },
+    /// Validator joining consensus
+    ValidatorJoin { identity: IdentityId, stake: u64 },
+    /// Validator leaving consensus
+    ValidatorLeave { identity: IdentityId },
+    /// Round prepared and ready
+    RoundPrepared { height: u64 },
+    /// Round completed successfully
+    RoundCompleted { height: u64 },
+    /// Round failed with error
+    RoundFailed { height: u64, error: String },
+    /// Validator registered successfully
+    ValidatorRegistered { identity: IdentityId },
+    /// DAO error occurred
+    DaoError { error: String },
+    /// Byzantine fault detected
+    ByzantineFault { error: String },
+    /// Reward calculation error
+    RewardError { error: String },
+    /// Proposal received
+    ProposalReceived { proposal: ConsensusProposal },
+    /// Vote received
+    VoteReceived { vote: ConsensusVote },
+}
