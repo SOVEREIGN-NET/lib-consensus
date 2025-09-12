@@ -8,7 +8,7 @@ use std::collections::{HashMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Import real ZK and crypto functionality
-use lib_proofs::{ZkProofSystem, ZkTransactionProver, ZkIdentityProof, initialize_zk_system};
+use lib_proofs::{ZkProofSystem, ZkTransactionProof, ZkIdentityProof, initialize_zk_system};
 use lib_crypto::{
     verification::verify_signature,
     keypair::generation::KeyPair,

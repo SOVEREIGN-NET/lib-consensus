@@ -52,6 +52,7 @@ impl ZkConsensusIntegration {
             credential_hash,
             min_age,
             required_jurisdiction,
+            1, // default verification level
         )?;
         
         // Return the proof data as serialized bytes
@@ -106,10 +107,10 @@ impl ZkConsensusIntegration {
         Ok(enhanced_proof)
     }
     
-    /// Verify ZK transaction proof using real Plonky2
+    /// Verify ZK transaction proof using unified ZK system
     pub async fn verify_zk_transaction_proof(&self, proof: &ZkTransactionProof) -> Result<bool> {
-        // Use ZkTransactionProver to verify the transaction proof
-        let verification_result = lib_proofs::ZkTransactionProver::verify_transaction(proof)?;
+        // Use the unified verification method
+        let verification_result = proof.verify()?;
         
         Ok(verification_result)
     }
