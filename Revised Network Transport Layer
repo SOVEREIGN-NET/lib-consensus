@@ -1,0 +1,345 @@
+// src/network/transport.rs
+use crate::errors::{Result, NetworkError};
+use crate::types::{ConsensusMessage, ConsensusMessageType, ValidatorId, MessageId};
+use lib_network::{NetworkManager, Message, PeerId};
+use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{RwLock, mpsc, oneshot};
+use tokio::time::{Duration, timeout, Instant};
+use dashmap::DashMap;
+use bytes::Bytes;
+use tracing::{info, warn, error, debug};
+
+#[async_trait]
+pub trait MessageHandler: Send + Sync + 'static {
+    async fn handle(&self, msg: ConsensusMessage, from: PeerId) -> Result<Option<ConsensusMessage>>;
+    fn message_type(&self) -> ConsensusMessageType;
+}
+
+#[async_trait]
+pub trait NetworkTransport: Send + Sync {
+    async fn send_message(&self, peer: &PeerId, message: ConsensusMessage) -> Result<()>;
+    async fn broadcast(&self, message: ConsensusMessage) -> Result<()>;
+    async fn request_response(
+        &self,
+        peer: &PeerId,
+        message: ConsensusMessage,
+        timeout: Duration,
+    ) -> Result<ConsensusMessage>;
+}
+
+pub struct ConsensusNetwork {
+    network_manager: Arc<NetworkManager>,
+    message_handlers: DashMap<ConsensusMessageType, Arc<dyn MessageHandler>>,
+    pending_requests: DashMap<MessageId, oneshot::Sender<ConsensusMessage>>,
+    message_cache: DashMap<MessageId, (ConsensusMessage, Instant)>,
+    rate_limiter: Arc<RwLock<RateLimiter>>,
+    connection_pool: Arc<ConnectionPool>,
+    metrics: Arc<NetworkMetrics>,
+}
+
+impl ConsensusNetwork {
+    pub fn new(network_manager: NetworkManager) -> Self {
+        Self {
+            network_manager: Arc::new(network_manager),
+            message_handlers: DashMap::new(),
+            pending_requests: DashMap::new(),
+            message_cache: DashMap::new(),
+            rate_limiter: Arc::new(RwLock::new(RateLimiter::new(1000, Duration::from_secs(1)))),
+            connection_pool: Arc::new(ConnectionPool::new(100)),
+            metrics: Arc::new(NetworkMetrics::new()),
+        }
+    }
+
+    pub fn register_handler<H>(&self, handler: H)
+    where
+        H: MessageHandler + 'static
+    {
+        let msg_type = handler.message_type();
+        self.message_handlers.insert(msg_type, Arc::new(handler));
+        info!("Registered handler for message type: {:?}", msg_type);
+    }
+
+    pub async fn start_listening(&self) -> Result<()> {
+        let handlers = self.message_handlers.clone();
+        let pending_requests = self.pending_requests.clone();
+        let rate_limiter = self.rate_limiter.clone();
+        let metrics = self.metrics.clone();
+
+        let network_manager = self.network_manager.clone();
+
+        network_manager.on_message(move |peer, data| {
+            let handlers = handlers.clone();
+            let pending_requests = pending_requests.clone();
+            let rate_limiter = rate_limiter.clone();
+            let metrics = metrics.clone();
+
+            Box::pin(async move {
+                // Rate limiting check
+                if !rate_limiter.read().await.allow(&peer) {
+                    warn!("Rate limit exceeded for peer: {}", peer);
+                    return Ok(());
+                }
+
+                metrics.inc_messages_received();
+                let start = Instant::now();
+
+                match Self::deserialize_message(&data) {
+                    Ok(msg) => {
+                        debug!("Received message type: {:?} from peer: {}", msg.message_type(), peer);
+
+                        // Check if this is a response to a pending request
+                        if let Some(response_id) = msg.response_to() {
+                            if let Some((_, sender)) = pending_requests.remove(&response_id) {
+                                let _ = sender.send(msg);
+                                return Ok(());
+                            }
+                        }
+
+                        // Handle regular message
+                        if let Some(handler) = handlers.get(&msg.message_type()) {
+                            match handler.handle(msg, peer).await {
+                                Ok(Some(response)) => {
+                                    // Send response if handler returned one
+                                    let serialized = Self::serialize_message(&response)?;
+                                    network_manager.send(&peer, serialized).await?;
+                                    metrics.inc_messages_sent();
+                                }
+                                Ok(None) => {}, // No response needed
+                                Err(e) => {
+                                    error!("Handler error: {}", e);
+                                    metrics.inc_handler_errors();
+                                }
+                            }
+                        } else {
+                            warn!("No handler registered for message type: {:?}", msg.message_type());
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to deserialize message from {}: {}", peer, e);
+                        metrics.inc_deserialization_errors();
+                    }
+                }
+
+                metrics.observe_message_processing_time(start.elapsed());
+                Ok(())
+            })
+        }).await.map_err(|e| NetworkError::ConnectionFailed {
+            peer_id: "listener".to_string()
+        })?;
+
+        info!("Network listening started");
+        Ok(())
+    }
+
+    fn serialize_message(msg: &ConsensusMessage) -> Result<Bytes> {
+        let bytes = bincode::serialize(msg)
+            .map_err(|e| NetworkError::SerializationError(
+                serde_json::Error::custom(e.to_string())
+            ))?;
+        Ok(Bytes::from(bytes))
+    }
+
+    fn deserialize_message(data: &[u8]) -> Result<ConsensusMessage> {
+        bincode::deserialize(data)
+            .map_err(|e| NetworkError::SerializationError(
+                serde_json::Error::custom(e.to_string())
+            ).into())
+    }
+
+    // Clean up expired cache entries
+    pub async fn cleanup_cache(&self) {
+        let now = Instant::now();
+        self.message_cache.retain(|_, (_, timestamp)| {
+            now.duration_since(*timestamp) < Duration::from_secs(300) // 5 minutes
+        });
+    }
+}
+
+#[async_trait]
+impl NetworkTransport for ConsensusNetwork {
+    async fn send_message(&self, peer: &PeerId, message: ConsensusMessage) -> Result<()> {
+        let serialized = Self::serialize_message(&message)?;
+
+        self.network_manager
+            .send(peer, serialized)
+            .await
+            .map_err(|_| NetworkError::ConnectionFailed {
+                peer_id: peer.to_string()
+            })?;
+
+        self.metrics.inc_messages_sent();
+        debug!("Sent message type: {:?} to peer: {}", message.message_type(), peer);
+        Ok(())
+    }
+
+    async fn broadcast(&self, message: ConsensusMessage) -> Result<()> {
+        let serialized = Self::serialize_message(&message)?;
+
+        self.network_manager
+            .broadcast(serialized)
+            .await
+            .map_err(|_| NetworkError::ConnectionFailed {
+                peer_id: "broadcast".to_string()
+            })?;
+
+        self.metrics.inc_broadcasts_sent();
+        info!("Broadcasted message type: {:?}", message.message_type());
+        Ok(())
+    }
+
+    async fn request_response(
+        &self,
+        peer: &PeerId,
+        mut message: ConsensusMessage,
+        request_timeout: Duration,
+    ) -> Result<ConsensusMessage> {
+        let request_id = MessageId::new();
+        message.set_id(request_id);
+
+        let (tx, rx) = oneshot::channel();
+        self.pending_requests.insert(request_id, tx);
+
+        // Send the request
+        self.send_message(peer, message).await?;
+
+        // Wait for response with timeout
+        let response = timeout(request_timeout, rx)
+            .await
+            .map_err(|_| crate::errors::ConsensusError::Timeout {
+                timeout_ms: request_timeout.as_millis() as u64
+            })?
+            .map_err(|_| NetworkError::InvalidMessage)?;
+
+        Ok(response)
+    }
+}
+
+// Rate limiting implementation
+pub struct RateLimiter {
+    requests: HashMap<PeerId, Vec<Instant>>,
+    max_requests: usize,
+    window: Duration,
+}
+
+impl RateLimiter {
+    pub fn new(max_requests: usize, window: Duration) -> Self {
+        Self {
+            requests: HashMap::new(),
+            max_requests,
+            window,
+        }
+    }
+
+    pub fn allow(&mut self, peer: &PeerId) -> bool {
+        let now = Instant::now();
+        let requests = self.requests.entry(*peer).or_insert_with(Vec::new);
+
+        // Remove old requests outside the window
+        requests.retain(|&timestamp| now.duration_since(timestamp) < self.window);
+
+        if requests.len() < self.max_requests {
+            requests.push(now);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+// Connection pool for efficient connection reuse
+pub struct ConnectionPool {
+    connections: DashMap<PeerId, Arc<tokio::sync::Mutex<()>>>,
+    max_connections: usize,
+}
+
+impl ConnectionPool {
+    pub fn new(max_connections: usize) -> Self {
+        Self {
+            connections: DashMap::new(),
+            max_connections,
+        }
+    }
+
+    pub async fn get_connection(&self, peer: &PeerId) -> Arc<tokio::sync::Mutex<()>> {
+        if let Some(conn) = self.connections.get(peer) {
+            conn.clone()
+        } else if self.connections.len() < self.max_connections {
+            let conn = Arc::new(tokio::sync::Mutex::new(()));
+            self.connections.insert(*peer, conn.clone());
+            conn
+        } else {
+            // Evict oldest connection (simple LRU-like behavior)
+            if let Some(entry) = self.connections.iter().next() {
+                let key = *entry.key();
+                self.connections.remove(&key);
+            }
+            let conn = Arc::new(tokio::sync::Mutex::new(()));
+            self.connections.insert(*peer, conn.clone());
+            conn
+        }
+    }
+}
+
+// Enhanced metrics collection
+pub struct NetworkMetrics {
+    messages_sent: std::sync::atomic::AtomicU64,
+    messages_received: std::sync::atomic::AtomicU64,
+    broadcasts_sent: std::sync::atomic::AtomicU64,
+    handler_errors: std::sync::atomic::AtomicU64,
+    deserialization_errors: std::sync::atomic::AtomicU64,
+    processing_times: Arc<RwLock<Vec<Duration>>>,
+}
+
+impl NetworkMetrics {
+    pub fn new() -> Self {
+        Self {
+            messages_sent: std::sync::atomic::AtomicU64::new(0),
+            messages_received: std::sync::atomic::AtomicU64::new(0),
+            broadcasts_sent: std::sync::atomic::AtomicU64::new(0),
+            handler_errors: std::sync::atomic::AtomicU64::new(0),
+            deserialization_errors: std::sync::atomic::AtomicU64::new(0),
+            processing_times: Arc::new(RwLock::new(Vec::new())),
+        }
+    }
+
+    pub fn inc_messages_sent(&self) {
+        self.messages_sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn inc_messages_received(&self) {
+        self.messages_received.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn inc_broadcasts_sent(&self) {
+        self.broadcasts_sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn inc_handler_errors(&self) {
+        self.handler_errors.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn inc_deserialization_errors(&self) {
+        self.deserialization_errors.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub async fn observe_message_processing_time(&self, duration: Duration) {
+        let mut times = self.processing_times.write().await;
+        times.push(duration);
+        // Keep only recent measurements (sliding window)
+        if times.len() > 1000 {
+            times.drain(0..500);
+        }
+    }
+
+    pub async fn get_average_processing_time(&self) -> Option<Duration> {
+        let times = self.processing_times.read().await;
+        if times.is_empty() {
+            None
+        } else {
+            let total: Duration = times.iter().sum();
+            Some(total / times.len() as u32)
+        }
+    }
+}
