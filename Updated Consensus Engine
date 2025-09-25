@@ -1,0 +1,244 @@
+// src/consensus/engine.rs
+use crate::network::{ConsensusNetwork, ValidatorDiscovery, MessageBroadcaster};
+use crate::persistence::ConsensusPersistence;
+use crate::metrics::ConsensusMetrics;
+use crate::errors::{Result, ConsensusError};
+use crate::types::{ConsensusMessage, ConsensusMessageType, ValidatorId, Block, Vote};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tracing::{info, warn, error, debug};
+use std::time::Instant;
+
+pub struct ConsensusEngine {
+    network: Arc<RwLock<ConsensusNetwork>>,
+    discovery: Arc<RwLock<ValidatorDiscovery>>,
+    broadcaster: MessageBroadcaster,
+    persistence: ConsensusPersistence,
+    metrics: Arc<ConsensusMetrics>,
+    current_state: Arc<RwLock<ConsensusState>>,
+}
+
+impl ConsensusEngine {
+    pub async fn new(
+        network_manager: lib_network::NetworkManager,
+        storage: lib_storage::Storage,
+        metrics_registry: prometheus::Registry,
+    ) -> Result<Self> {
+        let network = Arc::new(RwLock::new(ConsensusNetwork::new(network_manager)));
+        let discovery = Arc::new(RwLock::new(ValidatorDiscovery::new(
+            network.read().await.dht.clone(),
+            vec![], // Bootstrap nodes would be configured here
+        )));
+
+        let metrics = Arc::new(ConsensusMetrics::new(metrics_registry)?);
+        metrics.register()?;
+
+        Ok(Self {
+            network: network.clone(),
+            discovery,
+            broadcaster: MessageBroadcaster::new(network),
+            persistence: ConsensusPersistence::new(storage, 1000, None), // Checkpoint every 1000 blocks
+            metrics,
+            current_state: Arc::new(RwLock::new(ConsensusState::default())),
+        })
+    }
+
+    pub async fn start(&mut self) -> Result<()> {
+        // Discover validators
+        let validators = self.discovery.write().await.discover_validators().await?;
+
+        // Update metrics
+        self.metrics.set_active_validators(validators.len() as u64);
+
+        // Start network listening
+        self.network.write().await.start_listening().await?;
+
+        // Register message handlers
+        self.register_handlers().await?;
+
+        // Load persisted state if available
+        if let Some(state) = self.persistence.load_state().await? {
+            self.restore_state(state).await?;
+        }
+
+        info!("Consensus engine started successfully");
+        Ok(())
+    }
+
+    async fn register_handlers(&mut self) -> Result<()> {
+        let engine = Arc::new(self.clone());
+        
+        let proposal_handler = Arc::new(ProposalHandler { engine: engine.clone() });
+        let vote_handler = Arc::new(VoteHandler { engine });
+
+        self.network.write().await
+            .register_handler(proposal_handler);
+        self.network.write().await
+            .register_handler(vote_handler);
+
+        Ok(())
+    }
+
+    async fn restore_state(&self, state: ConsensusState) -> Result<()> {
+        let mut current_state = self.current_state.write().await;
+        *current_state = state;
+        
+        // Update metrics
+        self.metrics.set_block_height(current_state.current_height);
+        
+        info!("Restored consensus state at height {}", current_state.current_height);
+        Ok(())
+    }
+
+    pub async fn process_votes_parallel(&mut self, votes: Vec<Vote>) -> Result<()> {
+        let processing_start = Instant::now();
+        let current_height = self.current_state.read().await.current_height;
+
+        // Process votes in parallel
+        let results: Vec<_> = votes.into_par_iter()
+            .map(|vote| self.process_single_vote(vote, current_height))
+            .collect();
+
+        // Handle results
+        let mut valid_votes = 0;
+        for result in results {
+            match result {
+                Ok(_) => valid_votes += 1,
+                Err(e) => {
+                    warn!("Vote processing error: {}", e);
+                    self.metrics.inc_consensus_errors();
+                }
+            }
+        }
+
+        // Update metrics
+        self.metrics.observe_vote_time(processing_start.elapsed());
+        
+        debug!("Processed {} votes, {} valid", results.len(), valid_votes);
+        Ok(())
+    }
+
+    fn process_single_vote(&self, vote: Vote, current_height: u64) -> Result<()> {
+        // Validate vote
+        if vote.height != current_height {
+            return Err(ConsensusError::InvalidVote {
+                validator_id: vote.validator_id.to_string(),
+            });
+        }
+
+        // Verify signature
+        if !vote.verify_signature() {
+            return Err(ConsensusError::InvalidVote {
+                validator_id: vote.validator_id.to_string(),
+            });
+        }
+
+        // Process the vote
+        // ... existing vote processing logic ...
+
+        Ok(())
+    }
+
+    pub async fn resolve_fork(&mut self, new_block: Block) -> Result<()> {
+        let current_chain = self.get_current_chain().await?;
+        let new_chain = self.build_chain(new_block).await?;
+
+        if new_chain.len() > current_chain.len() {
+            // Apply longer chain
+            self.reorganize_chain(new_chain).await?;
+        } else if new_chain.len() == current_chain.len() {
+            // Handle equal length chains - use tie-breaking rules
+            if self.is_valid_chain(&new_chain).await? {
+                self.reorganize_chain(new_chain).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn reorganize_chain(&mut self, new_chain: Vec<Block>) -> Result<()> {
+        let tip_height = new_chain.first().map_or(0, |b| b.height);
+        
+        // Save checkpoint before reorganization
+        self.persistence.create_checkpoint(tip_height, &self.current_state.read().await).await?;
+
+        // Perform chain reorganization
+        // ... existing reorganization logic ...
+
+        // Update current state
+        let mut state = self.current_state.write().await;
+        state.current_height = tip_height;
+        // Update other state fields...
+
+        // Save new state
+        self.persistence.save_state(&state).await?;
+        
+        // Update metrics
+        self.metrics.set_block_height(tip_height);
+
+        info!("Chain reorganization completed, new height: {}", tip_height);
+        Ok(())
+    }
+
+    async fn get_current_chain(&self) -> Result<Vec<Block>> {
+        // ... implementation to retrieve current chain ...
+        Ok(Vec::new())
+    }
+
+    async fn build_chain(&self, new_block: Block) -> Result<Vec<Block>> {
+        // ... implementation to build chain from new block ...
+        Ok(Vec::new())
+    }
+
+    async fn is_valid_chain(&self, chain: &[Block]) -> Result<bool> {
+        // ... implementation to validate chain ...
+        Ok(true)
+    }
+}
+
+// Message handlers
+struct ProposalHandler {
+    engine: Arc<ConsensusEngine>,
+}
+
+#[async_trait]
+impl MessageHandler for ProposalHandler {
+    async fn handle(&self, msg: ConsensusMessage, from: lib_network::PeerId) -> Result<Option<ConsensusMessage>> {
+        let start = Instant::now();
+        
+        // Process proposal
+        // ... existing proposal processing logic ...
+        
+        self.engine.metrics.observe_proposal_time(start.elapsed());
+        self.engine.metrics.inc_messages_received();
+        
+        Ok(None) // No response needed
+    }
+    
+    fn message_type(&self) -> ConsensusMessageType {
+        ConsensusMessageType::Proposal
+    }
+}
+
+struct VoteHandler {
+    engine: Arc<ConsensusEngine>,
+}
+
+#[async_trait]
+impl MessageHandler for VoteHandler {
+    async fn handle(&self, msg: ConsensusMessage, from: lib_network::PeerId) -> Result<Option<ConsensusMessage>> {
+        let start = Instant::now();
+        
+        // Process vote
+        // ... existing vote processing logic ...
+        
+        self.engine.metrics.observe_vote_time(start.elapsed());
+        self.engine.metrics.inc_messages_received();
+        
+        Ok(None) // No response needed
+    }
+    
+    fn message_type(&self) -> ConsensusMessageType {
+        ConsensusMessageType::Vote
+    }
+}
