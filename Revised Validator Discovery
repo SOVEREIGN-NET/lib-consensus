@@ -1,0 +1,161 @@
+// src/network/discovery.rs
+use crate::errors::Result;
+use crate::types::{ValidatorId, ValidatorInfo, PeerId};
+use lib_network::DHT;
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
+use tokio::time::sleep;
+use tracing::{info, warn, error};
+
+pub struct ValidatorDiscovery {
+    dht: Arc<DHT>,
+    bootstrap_nodes: Vec<PeerId>,
+    validator_cache: DashMap<ValidatorId, ValidatorInfo>,
+    peer_to_validator: DashMap<PeerId, ValidatorId>,
+    last_discovery: RwLock<Instant>,
+    discovery_interval: Duration,
+}
+
+impl ValidatorDiscovery {
+    pub fn new(dht: DHT, bootstrap_nodes: Vec<PeerId>) -> Self {
+        Self {
+            dht: Arc::new(dht),
+            bootstrap_nodes,
+            validator_cache: DashMap::new(),
+            peer_to_validator: DashMap::new(),
+            last_discovery: RwLock::new(Instant::now() - Duration::from_secs(3600)),
+            discovery_interval: Duration::from_secs(30),
+        }
+    }
+
+    pub async fn discover_validators(&self) -> Result<Vec<ValidatorInfo>> {
+        let now = Instant::now();
+        let last_discovery = *self.last_discovery.read().await;
+
+        // Skip discovery if done recently
+        if now.duration_since(last_discovery) < self.discovery_interval {
+            return Ok(self.get_cached_validators());
+        }
+
+        info!("Starting validator discovery");
+
+        // Connect to bootstrap nodes with retry logic
+        for node in &self.bootstrap_nodes {
+            let mut retries = 3;
+            while retries > 0 {
+                match self.dht.connect(node).await {
+                    Ok(_) => {
+                        info!("Connected to bootstrap node: {}", node);
+                        break;
+                    }
+                    Err(e) => {
+                        warn!("Failed to connect to bootstrap node {}: {}", node, e);
+                        retries -= 1;
+                        if retries > 0 {
+                            sleep(Duration::from_millis(1000)).await;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Query DHT for validator nodes
+        let validator_peers = self.dht.get_nodes_by_type("validator").await
+            .map_err(|e| crate::errors::NetworkError::DiscoveryTimeout)?;
+
+        let mut discovered_validators = Vec::new();
+
+        // Validate and cache discovered validators
+        for peer in validator_peers {
+            match self.validate_and_cache_validator(&peer).await {
+                Ok(Some(validator)) => {
+                    discovered_validators.push(validator);
+                }
+                Ok(None) => {
+                    warn!("Validator validation failed for peer: {}", peer);
+                }
+                Err(e) => {
+                    error!("Error validating validator {}: {}", peer, e);
+                }
+            }
+        }
+
+        *self.last_discovery.write().await = now;
+        info!("Discovered {} validators", discovered_validators.len());
+
+        Ok(discovered_validators)
+    }
+
+    async fn validate_and_cache_validator(&self, peer: &PeerId) -> Result<Option<ValidatorInfo>> {
+        // Retrieve validator information with timeout
+        let validator_info = tokio::time::timeout(
+            Duration::from_secs(10),
+            self.dht.get_validator_info(peer)
+        )
+        .await
+        .map_err(|_| crate::errors::NetworkError::DiscoveryTimeout)?
+        .map_err(|e| crate::errors::NetworkError::ConnectionFailed {
+            peer_id: peer.to_string()
+        })?;
+
+        // Validate the validator information
+        if self.is_valid_validator(&validator_info) {
+            self.validator_cache.insert(validator_info.id, validator_info.clone());
+            self.peer_to_validator.insert(*peer, validator_info.id);
+            Ok(Some(validator_info))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn is_valid_validator(&self, validator: &ValidatorInfo) -> bool {
+        // Implement validation logic
+        validator.stake > 0 &&
+        validator.reputation >= 0.5 &&
+        !validator.is_slashed &&
+        validator.public_key.is_valid()
+    }
+
+    fn get_cached_validators(&self) -> Vec<ValidatorInfo> {
+        self.validator_cache
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
+    }
+
+    pub fn get_validator_peer(&self, validator_id: &ValidatorId) -> Option<PeerId> {
+        // Reverse lookup through peer_to_validator map
+        self.peer_to_validator
+            .iter()
+            .find_map(|entry| {
+                if entry.value() == validator_id {
+                    Some(*entry.key())
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub fn get_validator_id(&self, peer: &PeerId) -> Option<ValidatorId> {
+        self.peer_to_validator.get(peer).map(|v| *v.value())
+    }
+
+    pub fn get_validator_info(&self, validator_id: &ValidatorId) -> Option<ValidatorInfo> {
+        self.validator_cache.get(validator_id).map(|v| v.value().clone())
+    }
+
+    pub async fn refresh_validator(&self, validator_id: &ValidatorId) -> Result<Option<ValidatorInfo>> {
+        if let Some(peer) = self.get_validator_peer(validator_id) {
+            self.validate_and_cache_validator(&peer).await
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn remove_validator(&self, validator_id: &ValidatorId) {
+        if let Some(peer) = self.get_validator_peer(validator_id) {
+            self.peer_to_validator.remove(&peer);
+        }
+        self.validator_cache.remove(validator_id);
+    }
+}
