@@ -1,0 +1,248 @@
+// src/persistence/storage.rs
+use crate::errors::{Result, PersistenceError};
+use crate::types::{ConsensusState, Block, BlockHeight};
+use lib_storage::Storage;
+use serde::{Serialize, Deserialize};
+use std::path::PathBuf;
+use tokio::fs;
+use tracing::{info, warn, error};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Checkpoint {
+    pub height: BlockHeight,
+    pub state_hash: [u8; 32],
+    pub state: ConsensusState,
+    pub timestamp: u64,
+    pub merkle_root: [u8; 32],
+    pub validator_set_hash: [u8; 32],
+}
+
+impl Checkpoint {
+    pub fn new(height: BlockHeight, state: ConsensusState) -> Result<Self> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| PersistenceError::Storage(e.to_string()))?
+            .as_secs();
+
+        let state_hash = state.compute_hash();
+        let merkle_root = state.compute_merkle_root();
+        let validator_set_hash = state.validator_set.compute_hash();
+
+        Ok(Self {
+            height,
+            state_hash,
+            state,
+            timestamp,
+            merkle_root,
+            validator_set_hash,
+        })
+    }
+
+    pub fn verify_integrity(&self) -> Result<()> {
+        let computed_hash = self.state.compute_hash();
+        if computed_hash != self.state_hash {
+            return Err(PersistenceError::Corruption.into());
+        }
+
+        let computed_merkle = self.state.compute_merkle_root();
+        if computed_merkle != self.merkle_root {
+            return Err(PersistenceError::Corruption.into());
+        }
+
+        Ok(())
+    }
+}
+
+pub struct ConsensusPersistence {
+    storage: Arc<Storage>,
+    checkpoint_interval: u64,
+    max_checkpoints: usize,
+    backup_path: Option<PathBuf>,
+}
+
+impl ConsensusPersistence {
+    pub fn new(
+        storage: Storage,
+        checkpoint_interval: u64,
+        backup_path: Option<PathBuf>,
+    ) -> Self {
+        Self {
+            storage: Arc::new(storage),
+            checkpoint_interval,
+            max_checkpoints: 100, // Keep last 100 checkpoints
+            backup_path,
+        }
+    }
+
+    pub async fn save_state(&self, state: &ConsensusState) -> Result<()> {
+        let data = bincode::serialize(state)
+            .map_err(|e| PersistenceError::Storage(e.to_string()))?;
+
+        self.storage
+            .put("consensus_state", data.into())
+            .await
+            .map_err(|e| PersistenceError::Storage(e.to_string()))?;
+
+        // Create backup if configured
+        if let Some(backup_path) = &self.backup_path {
+            self.create_backup(state, backup_path).await?;
+        }
+
+        info!("Consensus state saved at height {}", state.current_height);
+        Ok(())
+    }
+
+    pub async fn load_state(&self) -> Result<Option<ConsensusState>> {
+        match self.storage.get("consensus_state").await {
+            Ok(Some(data)) => {
+                let state: ConsensusState = bincode::deserialize(&data)
+                    .map_err(|e| PersistenceError::Storage(e.to_string()))?;
+
+                // Verify state integrity
+                if !state.verify_integrity() {
+                    error!("State integrity check failed, attempting recovery");
+                    return self.recover_from_checkpoint().await;
+                }
+
+                info!("Loaded consensus state from height {}", state.current_height);
+                Ok(Some(state))
+            }
+            Ok(None) => {
+                info!("No existing consensus state found");
+                Ok(None)
+            }
+            Err(e) => {
+                error!("Failed to load state: {}", e);
+                // Attempt recovery from latest checkpoint
+                self.recover_from_checkpoint().await
+            }
+        }
+    }
+
+    pub async fn create_checkpoint(&self, height: BlockHeight, state: &ConsensusState) -> Result<()> {
+        if height % self.checkpoint_interval != 0 {
+            return Ok(()); // Not a checkpoint height
+        }
+
+        let checkpoint = Checkpoint::new(height, state.clone())?;
+
+        let data = bincode::serialize(&checkpoint)
+            .map_err(|e| PersistenceError::Storage(e.to_string()))?;
+
+        let key = format!("checkpoint_{}", height);
+        self.storage
+            .put(&key, data.into())
+            .await
+            .map_err(|e| PersistenceError::CheckpointFailed { height })?;
+
+        // Cleanup old checkpoints
+        self.cleanup_old_checkpoints(height).await?;
+
+        info!("Created checkpoint at height {}", height);
+        Ok(())
+    }
+
+    pub async fn load_latest_checkpoint(&self) -> Result<Option<Checkpoint>> {
+        // Get all checkpoint keys
+        let checkpoint_keys = self.storage
+            .list_keys("checkpoint_")
+            .await
+            .map_err(|e| PersistenceError::Storage(e.to_string()))?;
+
+        if checkpoint_keys.is_empty() {
+            return Ok(None);
+        }
+
+        // Find the highest checkpoint height
+        let mut max_height = 0;
+        let mut latest_key = None;
+
+        for key in &checkpoint_keys {
+            if let Some(height_str) = key.strip_prefix("checkpoint_") {
+                if let Ok(height) = height_str.parse::<u64>() {
+                    if height > max_height {
+                        max_height = height;
+                        latest_key = Some(key);
+                    }
+                }
+            }
+        }
+
+        if let Some(key) = latest_key {
+            if let Some(data) = self.storage.get(key).await
+                .map_err(|e| PersistenceError::Storage(e.to_string()))?
+            {
+                let checkpoint: Checkpoint = bincode::deserialize(&data)
+                    .map_err(|e| PersistenceError::Storage(e.to_string()))?;
+
+                // Verify checkpoint integrity
+                checkpoint.verify_integrity()?;
+
+                info!("Loaded checkpoint from height {}", checkpoint.height);
+                return Ok(Some(checkpoint));
+            }
+        }
+
+        Ok(None)
+    }
+
+    async fn recover_from_checkpoint(&self) -> Result<Option<ConsensusState>> {
+        warn!("Attempting state recovery from checkpoint");
+
+        if let Some(checkpoint) = self.load_latest_checkpoint().await? {
+            info!("Recovered state from checkpoint at height {}", checkpoint.height);
+            Ok(Some(checkpoint.state))
+        } else {
+            warn!("No valid checkpoint found for recovery");
+            Ok(None)
+        }
+    }
+
+    async fn cleanup_old_checkpoints(&self, current_height: BlockHeight) -> Result<()> {
+        let checkpoint_keys = self.storage
+            .list_keys("checkpoint_")
+            .await
+            .map_err(|e| PersistenceError::Storage(e.to_string()))?;
+
+        let mut heights: Vec<u64> = checkpoint_keys
+            .iter()
+            .filter_map(|key| {
+                key.strip_prefix("checkpoint_")
+                    .and_then(|h| h.parse::<u64>().ok())
+            })
+            .collect();
+
+        // Sort heights in descending order
+        heights.sort_unstable_by(|a, b| b.cmp(a));
+
+        // Keep only the most recent max_checkpoints
+        if heights.len() > self.max_checkpoints {
+            for height in heights.iter().skip(self.max_checkpoints) {
+                let key = format!("checkpoint_{}", height);
+                if let Err(e) = self.storage.delete(&key).await {
+                    warn!("Failed to delete checkpoint {}: {}", key, e);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn create_backup(&self, state: &ConsensusState, backup_path: &PathBuf) -> Result<()> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| PersistenceError::Storage(e.to_string()))?
+            .as_secs();
+
+        let backup_file = backup_path.join(format!("consensus_backup_{}.bin", timestamp));
+        
+        let data = bincode::serialize(state)
+            .map_err(|e| PersistenceError::Storage(e.to_string()))?;
+
+        fs::write(&backup_file, data).await
+            .map_err(|e| PersistenceError::Storage(format!("Failed to create backup: {}", e)))?;
+
+        info!("Created backup at {:?}", backup_file);
+        Ok(())
+    }
+}
