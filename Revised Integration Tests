@@ -1,0 +1,112 @@
+// tests/network_integration.rs
+use zhtp::network::{ConsensusNetwork, ValidatorDiscovery, MessageBroadcaster};
+use zhtp::types::{ConsensusMessage, ConsensusMessageType};
+use lib_network::{NetworkManager, PeerId};
+use std::sync::Arc;
+use tokio::sync::Barrier;
+
+#[tokio::test]
+async fn test_network_integration() {
+    // Create network managers for two nodes
+    let manager1 = NetworkManager::new("test1").await.unwrap();
+    let manager2 = NetworkManager::new("test2").await.unwrap();
+
+    // Create consensus networks
+    let mut network1 = ConsensusNetwork::new(manager1.clone());
+    let mut network2 = ConsensusNetwork::new(manager2.clone());
+
+    // Setup message handling
+    let barrier = Arc::new(Barrier::new(2));
+    let barrier_clone = barrier.clone();
+
+    network1.register_handler(
+        TestHandler {
+            barrier: barrier_clone,
+            message_type: ConsensusMessageType::Proposal,
+        }
+    );
+
+    // Start listening
+    network1.start_listening().await.unwrap();
+    network2.start_listening().await.unwrap();
+
+    // Connect nodes
+    network1.connect(&network2.local_peer_id()).await.unwrap();
+
+    // Send test message
+    let test_msg = ConsensusMessage::Proposal(/* ... */);
+    network2.send_message(&network1.local_peer_id(), test_msg).await.unwrap();
+
+    // Wait for message processing
+    barrier.wait().await;
+}
+
+#[tokio::test]
+async fn test_validator_discovery() {
+    // Create DHT instance
+    let dht = DHT::new().await.unwrap();
+
+    // Create validator discovery
+    let mut discovery = ValidatorDiscovery::new(dht, vec![]);
+
+    // Test validator discovery
+    let validators = discovery.discover_validators().await.unwrap();
+    assert!(!validators.is_empty());
+}
+
+#[tokio::test]
+async fn test_state_persistence() {
+    // Create storage backend
+    let storage = lib_storage::Storage::new_in_memory();
+    
+    // Create persistence layer
+    let persistence = ConsensusPersistence::new(storage, 10, None);
+    
+    // Create test state
+    let state = ConsensusState::new_test_state(100);
+    
+    // Save state
+    persistence.save_state(&state).await.unwrap();
+    
+    // Load state
+    let loaded_state = persistence.load_state().await.unwrap().unwrap();
+    
+    // Verify state
+    assert_eq!(state.current_height, loaded_state.current_height);
+    assert_eq!(state.validator_set.hash(), loaded_state.validator_set.hash());
+}
+
+#[tokio::test]
+async fn test_checkpoint_creation() {
+    // Create storage backend
+    let storage = lib_storage::Storage::new_in_memory();
+    
+    // Create persistence layer with checkpoint interval of 5
+    let persistence = ConsensusPersistence::new(storage, 5, None);
+    
+    // Create test state at height 10 (should create checkpoint)
+    let state = ConsensusState::new_test_state(10);
+    persistence.create_checkpoint(10, &state).await.unwrap();
+    
+    // Verify checkpoint exists
+    let checkpoint = persistence.load_latest_checkpoint().await.unwrap().unwrap();
+    assert_eq!(checkpoint.height, 10);
+    assert_eq!(checkpoint.state.current_height, 10);
+}
+
+struct TestHandler {
+    barrier: Arc<Barrier>,
+    message_type: ConsensusMessageType,
+}
+
+#[async_trait]
+impl MessageHandler for TestHandler {
+    async fn handle(&self, _msg: ConsensusMessage, _from: PeerId) -> Result<Option<ConsensusMessage>> {
+        self.barrier.wait().await;
+        Ok(None)
+    }
+    
+    fn message_type(&self) -> ConsensusMessageType {
+        self.message_type
+    }
+}
