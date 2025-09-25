@@ -1,0 +1,22 @@
+src/
+├── network/
+│   ├── mod.rs
+│   ├── transport.rs
+│   ├── discovery.rs
+│   ├── broadcast.rs
+│   └── errors.rs
+├── consensus/
+│   ├── mod.rs
+│   ├── engine.rs
+│   ├── state.rs
+│   └── validator.rs
+├── persistence/
+│   ├── mod.rs
+│   ├── checkpoint.rs
+│   └── storage.rs
+├── metrics/
+│   ├── mod.rs
+│   └── collector.rs
+├── types.rs
+├── errors.rs
+└── lib.rs
