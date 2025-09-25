@@ -1,0 +1,161 @@
+// src/metrics/collector.rs
+use std::time::{Duration, Instant};
+use prometheus::{Counter, Histogram, Gauge, Registry};
+use std::sync::Arc;
+
+pub struct ConsensusMetrics {
+    // Processing time metrics
+    proposal_processing_time: Histogram,
+    vote_processing_time: Histogram,
+    consensus_round_time: Histogram,
+    
+    // State metrics
+    active_validators: Gauge,
+    current_block_height: Gauge,
+    
+    // Network metrics
+    network_messages_sent: Counter,
+    network_messages_received: Counter,
+    network_broadcasts_sent: Counter,
+    
+    // Error metrics
+    consensus_errors: Counter,
+    network_errors: Counter,
+    persistence_errors: Counter,
+    
+    // Registry
+    registry: Registry,
+}
+
+impl ConsensusMetrics {
+    pub fn new(registry: Registry) -> Result<Self> {
+        Ok(Self {
+            proposal_processing_time: Histogram::with_opts(
+                prometheus::HistogramOpts::new(
+                    "consensus_proposal_processing_seconds",
+                    "Time spent processing proposals",
+                ).buckets(vec![0.1, 0.5, 1.0, 2.0, 5.0])
+            )?,
+            vote_processing_time: Histogram::with_opts(
+                prometheus::HistogramOpts::new(
+                    "consensus_vote_processing_seconds",
+                    "Time spent processing votes",
+                ).buckets(vec![0.01, 0.05, 0.1, 0.5, 1.0])
+            )?,
+            consensus_round_time: Histogram::with_opts(
+                prometheus::HistogramOpts::new(
+                    "consensus_round_duration_seconds",
+                    "Duration of consensus rounds",
+                ).buckets(vec![1.0, 5.0, 10.0, 30.0, 60.0])
+            )?,
+            active_validators: Gauge::with_opts(
+                prometheus::Opts::new(
+                    "consensus_active_validators",
+                    "Number of active validators",
+                )
+            )?,
+            current_block_height: Gauge::with_opts(
+                prometheus::Opts::new(
+                    "consensus_block_height",
+                    "Current block height",
+                )
+            )?,
+            network_messages_sent: Counter::with_opts(
+                prometheus::Opts::new(
+                    "consensus_network_messages_sent_total",
+                    "Total number of network messages sent",
+                )
+            )?,
+            network_messages_received: Counter::with_opts(
+                prometheus::Opts::new(
+                    "consensus_network_messages_received_total",
+                    "Total number of network messages received",
+                )
+            )?,
+            network_broadcasts_sent: Counter::with_opts(
+                prometheus::Opts::new(
+                    "consensus_network_broadcasts_sent_total",
+                    "Total number of network broadcasts sent",
+                )
+            )?,
+            consensus_errors: Counter::with_opts(
+                prometheus::Opts::new(
+                    "consensus_errors_total",
+                    "Total number of consensus errors",
+                )
+            )?,
+            network_errors: Counter::with_opts(
+                prometheus::Opts::new(
+                    "consensus_network_errors_total",
+                    "Total number of network errors",
+                )
+            )?,
+            persistence_errors: Counter::with_opts(
+                prometheus::Opts::new(
+                    "consensus_persistence_errors_total",
+                    "Total number of persistence errors",
+                )
+            )?,
+            registry,
+        })
+    }
+
+    pub fn observe_proposal_time(&self, duration: Duration) {
+        self.proposal_processing_time.observe(duration.as_secs_f64());
+    }
+
+    pub fn observe_vote_time(&self, duration: Duration) {
+        self.vote_processing_time.observe(duration.as_secs_f64());
+    }
+
+    pub fn observe_round_time(&self, duration: Duration) {
+        self.consensus_round_time.observe(duration.as_secs_f64());
+    }
+
+    pub fn set_active_validators(&self, count: u64) {
+        self.active_validators.set(count as f64);
+    }
+
+    pub fn set_block_height(&self, height: u64) {
+        self.current_block_height.set(height as f64);
+    }
+
+    pub fn inc_messages_sent(&self) {
+        self.network_messages_sent.inc();
+    }
+
+    pub fn inc_messages_received(&self) {
+        self.network_messages_received.inc();
+    }
+
+    pub fn inc_broadcasts_sent(&self) {
+        self.network_broadcasts_sent.inc();
+    }
+
+    pub fn inc_consensus_errors(&self) {
+        self.consensus_errors.inc();
+    }
+
+    pub fn inc_network_errors(&self) {
+        self.network_errors.inc();
+    }
+
+    pub fn inc_persistence_errors(&self) {
+        self.persistence_errors.inc();
+    }
+
+    pub fn register(&self) -> Result<()> {
+        self.registry.register(Box::new(self.proposal_processing_time.clone()))?;
+        self.registry.register(Box::new(self.vote_processing_time.clone()))?;
+        self.registry.register(Box::new(self.consensus_round_time.clone()))?;
+        self.registry.register(Box::new(self.active_validators.clone()))?;
+        self.registry.register(Box::new(self.current_block_height.clone()))?;
+        self.registry.register(Box::new(self.network_messages_sent.clone()))?;
+        self.registry.register(Box::new(self.network_messages_received.clone()))?;
+        self.registry.register(Box::new(self.network_broadcasts_sent.clone()))?;
+        self.registry.register(Box::new(self.consensus_errors.clone()))?;
+        self.registry.register(Box::new(self.network_errors.clone()))?;
+        self.registry.register(Box::new(self.persistence_errors.clone()))?;
+        Ok(())
+    }
+}
