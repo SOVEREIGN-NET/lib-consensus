@@ -2,15 +2,13 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
-use anyhow::Result;
 
 use lib_crypto::{Hash, hash_blake3};
 use lib_identity::IdentityId;
 
 use crate::types::{
-    ConsensusEvent, // Add this import
-    ConsensusRound, ConsensusStep, ConsensusProposal, ConsensusVote, 
-    VoteType, ConsensusConfig, NetworkState
+    ConsensusEvent, ConsensusRound, ConsensusStep, ConsensusProposal, ConsensusVote, 
+    VoteType, ConsensusConfig
 };
 use crate::validators::ValidatorManager;
 use crate::byzantine::ByzantineFaultDetector;
@@ -75,12 +73,38 @@ impl BftEngine {
     pub async fn handle_consensus_event(&mut self, event: ConsensusEvent) -> ConsensusResult<Vec<ConsensusEvent>> {
         match event {
             ConsensusEvent::StartRound { height, trigger } => {
+                tracing::info!("🏛️ BFT: Starting consensus round {} (trigger: {})", height, trigger);
+                
+                // Handle BFT-specific trigger behavior
+                match trigger.as_str() {
+                    "timeout" => {
+                        tracing::warn!("⏰ BFT timeout - increasing round timeout");
+                        self.increase_round_timeout().await?;
+                    },
+                    "new_transaction" => {
+                        tracing::debug!("💳 BFT processing new transactions");
+                    },
+                    "validator_byzantine" => {
+                        tracing::error!("🚨 BFT triggered by Byzantine behavior detection");
+                        self.handle_byzantine_trigger().await?;
+                    },
+                    _ => tracing::debug!("🔧 BFT trigger: {}", trigger),
+                }
+                
                 self.prepare_for_round(height).await?;
                 Ok(vec![ConsensusEvent::RoundPrepared { height }])
             }
             ConsensusEvent::NewBlock { height, previous_hash } => {
                 match self.run_consensus_round(previous_hash).await {
                     Ok(Some(committed_hash)) => {
+                        tracing::info!("✅ BFT block committed: {} at height {}", committed_hash, height);
+                        
+                        // Record the committed hash for finality tracking
+                        self.record_committed_block(height, committed_hash.clone()).await?;
+                        
+                        // Notify about successful commitment
+                        tracing::info!("🎯 BFT finality achieved for block {} at height {}", committed_hash, height);
+                        
                         Ok(vec![ConsensusEvent::RoundCompleted { height }])
                     }
                     Ok(None) => {
@@ -541,5 +565,39 @@ impl BftEngine {
     /// Get validator manager
     pub fn validator_manager(&self) -> &ValidatorManager {
         &self.validator_manager
+    }
+
+    /// Increase round timeout for BFT consensus
+    async fn increase_round_timeout(&mut self) -> ConsensusResult<()> {
+        // Mark round as timed out and increase round number
+        self.current_round.timed_out = true;
+        self.current_round.round += 1;
+        tracing::warn!("⏰ BFT timeout - advanced to round {}", self.current_round.round);
+        Ok(())
+    }
+
+    /// Handle Byzantine fault trigger
+    async fn handle_byzantine_trigger(&mut self) -> ConsensusResult<()> {
+        tracing::error!("🚨 BFT handling Byzantine fault trigger");
+        // Reset round state and increase security measures
+        self.current_round.step = ConsensusStep::Propose;
+        self.current_round.proposer = None; // Clear proposer to force re-selection
+        Ok(())
+    }
+
+    /// Record committed block for finality tracking
+    async fn record_committed_block(&mut self, height: u64, committed_hash: Hash) -> ConsensusResult<()> {
+        tracing::info!("📝 Recording committed block {} at height {}", committed_hash, height);
+        
+        // In a real implementation, this would:
+        // 1. Store the committed hash in persistent storage
+        // 2. Update finality checkpoints
+        // 3. Notify other components about finality
+        // 4. Update the longest committed chain
+        
+        // For now, we just log the commitment
+        tracing::info!("✅ Block {} committed with BFT finality at height {}", committed_hash, height);
+        
+        Ok(())
     }
 }

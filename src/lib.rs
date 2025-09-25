@@ -72,6 +72,9 @@ pub enum ConsensusError {
     #[error("ZK proof error: {0}")]
     ZkError(String),
     
+    #[error("Invalid previous hash: {0}")]
+    InvalidPreviousHash(String),
+    
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
     

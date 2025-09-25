@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use lib_identity::IdentityId;
 use crate::validators::ValidatorManager;
-use crate::types::{SlashType, ValidatorStatus};
+use crate::types::SlashType;
 
 /// Byzantine fault detector
 #[derive(Debug, Clone)]

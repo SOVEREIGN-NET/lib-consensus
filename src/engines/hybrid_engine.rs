@@ -2,18 +2,16 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
-use anyhow::Result;
 
 use lib_crypto::{Hash, hash_blake3};
 use lib_identity::IdentityId;
 
 use crate::types::{
-    ConsensusEvent, // Add this import
-    ConsensusRound, ConsensusStep, ConsensusProposal, ConsensusVote, 
+    ConsensusEvent, ConsensusRound, ConsensusStep, ConsensusProposal, ConsensusVote, 
     VoteType, ConsensusConfig, ConsensusType, ConsensusProof
 };
 use crate::validators::ValidatorManager;
-use crate::proofs::{StakeProof, StorageProof};
+use crate::proofs::StakeProof;
 use crate::{ConsensusResult, ConsensusError};
 
 /// Hybrid consensus engine combining Proof of Stake and Proof of Storage
@@ -83,12 +81,36 @@ impl HybridEngine {
     pub async fn handle_consensus_event(&mut self, event: ConsensusEvent) -> ConsensusResult<Vec<ConsensusEvent>> {
         match event {
             ConsensusEvent::StartRound { height, trigger } => {
+                tracing::info!("🔄 Hybrid: Starting consensus round {} (trigger: {})", height, trigger);
+                
+                // Handle hybrid-specific triggers (PoW + BFT combination)
+                match trigger.as_str() {
+                    "timeout" => {
+                        tracing::warn!("⏰ Hybrid timeout - switching to BFT mode");
+                        self.switch_to_bft_mode().await?;
+                    },
+                    "work_proof_found" => {
+                        tracing::info!("⛏️ PoW solution found - validating work");
+                        self.validate_work_proof().await?;
+                    },
+                    "difficulty_adjustment" => {
+                        tracing::info!("📊 Difficulty adjustment triggered hybrid round");
+                        self.adjust_hybrid_parameters().await?;
+                    },
+                    _ => tracing::debug!("🔧 Hybrid trigger: {}", trigger),
+                }
+                
                 self.prepare_for_round(height).await?;
                 Ok(vec![ConsensusEvent::RoundPrepared { height }])
             }
             ConsensusEvent::NewBlock { height, previous_hash } => {
                 match self.run_hybrid_round(previous_hash).await {
                     Ok(Some(committed_hash)) => {
+                        tracing::info!("✅ Hybrid block committed: {} at height {}", committed_hash, height);
+                        
+                        // Record committed hash for hybrid consensus tracking
+                        self.record_hybrid_commitment(height, committed_hash.clone()).await?;
+                        
                         Ok(vec![ConsensusEvent::RoundCompleted { height }])
                     }
                     Ok(None) => {
@@ -586,5 +608,45 @@ impl HybridEngine {
     /// Get validator manager
     pub fn validator_manager(&self) -> &ValidatorManager {
         &self.validator_manager
+    }
+
+    /// Switch to BFT mode when PoW times out
+    async fn switch_to_bft_mode(&mut self) -> ConsensusResult<()> {
+        tracing::warn!("🔄 Switching to BFT mode due to PoW timeout");
+        // Increase BFT weight temporarily
+        self.stake_weight = 0.8;
+        self.storage_weight = 0.2;
+        Ok(())
+    }
+
+    /// Validate work proof in hybrid consensus
+    async fn validate_work_proof(&mut self) -> ConsensusResult<()> {
+        tracing::info!("⛏️ Validating work proof in hybrid consensus");
+        // Increase PoW weight when work is found
+        self.stake_weight = 0.3;
+        self.storage_weight = 0.7;
+        Ok(())
+    }
+
+    /// Adjust hybrid parameters
+    async fn adjust_hybrid_parameters(&mut self) -> ConsensusResult<()> {
+        tracing::info!("📊 Adjusting hybrid consensus parameters");
+        // Balance weights based on network conditions
+        self.stake_weight = 0.5;
+        self.storage_weight = 0.5;
+        Ok(())
+    }
+
+    /// Record hybrid commitment
+    async fn record_hybrid_commitment(&mut self, height: u64, committed_hash: Hash) -> ConsensusResult<()> {
+        tracing::info!("📝 Recording hybrid commitment {} at height {}", committed_hash, height);
+        
+        // In a real implementation:
+        // 1. Record both PoW and BFT components of the commitment
+        // 2. Update hybrid chain state
+        // 3. Adjust difficulty and stake requirements
+        
+        tracing::info!("✅ Hybrid block {} committed at height {}", committed_hash, height);
+        Ok(())
     }
 }

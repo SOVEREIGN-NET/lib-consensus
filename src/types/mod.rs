@@ -1,7 +1,7 @@
 //! Core types for ZHTP consensus system
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use lib_crypto::{Hash, PostQuantumSignature};
 use lib_identity::IdentityId;
 

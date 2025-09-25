@@ -3,29 +3,25 @@
 //! This module provides production-ready consensus validation using real
 //! zero-knowledge proofs and post-quantum cryptography from lib-proofs and lib-crypto.
 
-use anyhow::Result;
 use std::collections::{HashMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
+use anyhow::Result;
 
 // Import real ZK and crypto functionality
-use lib_proofs::{ZkProofSystem, ZkTransactionProof, ZkIdentityProof, initialize_zk_system};
+use lib_proofs::{ZkProofSystem, initialize_zk_system};
 use lib_crypto::{
     verification::verify_signature,
     keypair::generation::KeyPair,
-    types::{keys::{PublicKey, PrivateKey}, signatures::Signature},
     hashing::hash_blake3,
-    random::generate_nonce,
 };
 use lib_identity::IdentityId;
 
 use crate::types::{
-    ConsensusEvent, // Add this import
     ConsensusRound, ConsensusStep, ConsensusProposal, ConsensusVote, 
     VoteType, ConsensusConfig, ConsensusProof
 };
 use crate::validators::ValidatorManager;
 use crate::byzantine::ByzantineFaultDetector;
-use crate::{ConsensusResult, ConsensusError};
 
 /// Enhanced BFT consensus engine with real ZK verification
 pub struct EnhancedBftEngine {
