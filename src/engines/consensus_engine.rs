@@ -466,7 +466,6 @@ impl ConsensusEngine {
             public_key: lib_crypto::PublicKey {
                 dilithium_pk: validator.consensus_key.clone(),
                 kyber_pk: validator.consensus_key[..16].to_vec(), // Truncated for demo
-                ed25519_pk: validator.consensus_key[..32].to_vec(),
                 key_id: validator_id.as_bytes().try_into().unwrap_or([0u8; 32]),
             },
             algorithm: lib_crypto::SignatureAlgorithm::Dilithium2,
@@ -743,7 +742,6 @@ impl ConsensusEngine {
             public_key: lib_crypto::PublicKey {
                 dilithium_pk: validator.consensus_key.clone(),
                 kyber_pk: validator.consensus_key[..16].to_vec(),
-                ed25519_pk: validator.consensus_key[..32].to_vec(),
                 key_id: validator.identity.as_bytes().try_into().unwrap_or([0u8; 32]),
             },
             algorithm: lib_crypto::SignatureAlgorithm::Dilithium2,

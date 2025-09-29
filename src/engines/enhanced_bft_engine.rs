@@ -551,7 +551,6 @@ impl EnhancedBftEngine {
                 public_key: lib_crypto::PublicKey {
                     dilithium_pk: vec![1; 32],
                     kyber_pk: vec![2; 32],
-                    ed25519_pk: vec![3; 32],
                     key_id: [4; 32],
                 },
                 algorithm: lib_crypto::SignatureAlgorithm::Dilithium2,
@@ -732,7 +731,6 @@ pub mod testing {
                 public_key: lib_crypto::PublicKey {
                     dilithium_pk: vec![1; 32],
                     kyber_pk: vec![2; 32],
-                    ed25519_pk: vec![3; 32],
                     key_id: [4; 32],
                 },
                 algorithm: lib_crypto::SignatureAlgorithm::Dilithium2,
@@ -772,7 +770,6 @@ pub mod testing {
                 public_key: lib_crypto::PublicKey {
                     dilithium_pk: vec![1; 32],
                     kyber_pk: vec![2; 32],
-                    ed25519_pk: vec![3; 32],
                     key_id: [4; 32],
                 },
                 algorithm: lib_crypto::SignatureAlgorithm::Dilithium2,

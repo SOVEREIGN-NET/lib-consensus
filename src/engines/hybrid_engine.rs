@@ -548,7 +548,6 @@ impl HybridEngine {
             public_key: lib_crypto::PublicKey {
                 dilithium_pk: signature_hash[..32].to_vec(),
                 kyber_pk: signature_hash[..16].to_vec(),
-                ed25519_pk: signature_hash[..32].to_vec(),
                 key_id: proposer.as_bytes().try_into().unwrap_or([0u8; 32]),
             },
             algorithm: lib_crypto::SignatureAlgorithm::Dilithium2,
@@ -580,7 +579,6 @@ impl HybridEngine {
             public_key: lib_crypto::PublicKey {
                 dilithium_pk: signature_hash[..32].to_vec(),
                 kyber_pk: signature_hash[..16].to_vec(),
-                ed25519_pk: signature_hash[..32].to_vec(),
                 key_id: voter.as_bytes().try_into().unwrap_or([0u8; 32]),
             },
             algorithm: lib_crypto::SignatureAlgorithm::Dilithium2,

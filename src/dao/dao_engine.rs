@@ -324,7 +324,6 @@ impl DaoEngine {
             public_key: lib_crypto::PublicKey {
                 dilithium_pk: signature_hash[..32].to_vec(),
                 kyber_pk: signature_hash[..32].to_vec(),
-                ed25519_pk: signature_hash[..32].to_vec(),
                 key_id: signature_hash[..32].try_into().unwrap(),
             },
             algorithm: lib_crypto::SignatureAlgorithm::Dilithium2,
