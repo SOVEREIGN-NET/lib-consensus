@@ -81,7 +81,7 @@ impl HybridEngine {
     pub async fn handle_consensus_event(&mut self, event: ConsensusEvent) -> ConsensusResult<Vec<ConsensusEvent>> {
         match event {
             ConsensusEvent::StartRound { height, trigger } => {
-                tracing::info!("🔄 Hybrid: Starting consensus round {} (trigger: {})", height, trigger);
+                tracing::info!(" Hybrid: Starting consensus round {} (trigger: {})", height, trigger);
                 
                 // Handle hybrid-specific triggers (PoW + BFT combination)
                 match trigger.as_str() {
@@ -94,10 +94,10 @@ impl HybridEngine {
                         self.validate_work_proof().await?;
                     },
                     "difficulty_adjustment" => {
-                        tracing::info!("📊 Difficulty adjustment triggered hybrid round");
+                        tracing::info!("Difficulty adjustment triggered hybrid round");
                         self.adjust_hybrid_parameters().await?;
                     },
-                    _ => tracing::debug!("🔧 Hybrid trigger: {}", trigger),
+                    _ => tracing::debug!("Hybrid trigger: {}", trigger),
                 }
                 
                 self.prepare_for_round(height).await?;
@@ -106,7 +106,7 @@ impl HybridEngine {
             ConsensusEvent::NewBlock { height, previous_hash } => {
                 match self.run_hybrid_round(previous_hash).await {
                     Ok(Some(committed_hash)) => {
-                        tracing::info!("✅ Hybrid block committed: {} at height {}", committed_hash, height);
+                        tracing::info!("Hybrid block committed: {} at height {}", committed_hash, height);
                         
                         // Record committed hash for hybrid consensus tracking
                         self.record_hybrid_commitment(height, committed_hash.clone()).await?;
@@ -143,14 +143,14 @@ impl HybridEngine {
         self.current_round.start_time = SystemTime::now().duration_since(UNIX_EPOCH)
             .map_err(|e| ConsensusError::TimeError(e))?.as_secs();
 
-        tracing::info!("🚀 Prepared hybrid consensus for height {}", height);
+        tracing::info!(" Prepared hybrid consensus for height {}", height);
         Ok(())
     }
 
     /// Run a single hybrid consensus round
     async fn run_hybrid_round(&mut self, previous_hash: Hash) -> ConsensusResult<Option<Hash>> {
         tracing::info!(
-            "🎯 Starting hybrid round {} at height {} (stake: {:.1}%, storage: {:.1}%)",
+            "Starting hybrid round {} at height {} (stake: {:.1}%, storage: {:.1}%)",
             self.current_round.round, self.current_round.height,
             self.stake_weight * 100.0, self.storage_weight * 100.0
         );
@@ -309,7 +309,7 @@ impl HybridEngine {
         };
 
         tracing::info!(
-            "📋 Created hybrid proposal {:?} for height {} (stake+storage)",
+            "Created hybrid proposal {:?} for height {} (stake+storage)",
             proposal.id, proposal.height
         );
 
@@ -498,7 +498,7 @@ impl HybridEngine {
         self.current_round.timed_out = false;
 
         tracing::info!(
-            "🔄 Advanced to hybrid round {} at height {}",
+            " Advanced to hybrid round {} at height {}",
             self.current_round.round, self.current_round.height
         );
 
@@ -610,7 +610,7 @@ impl HybridEngine {
 
     /// Switch to BFT mode when PoW times out
     async fn switch_to_bft_mode(&mut self) -> ConsensusResult<()> {
-        tracing::warn!("🔄 Switching to BFT mode due to PoW timeout");
+        tracing::warn!(" Switching to BFT mode due to PoW timeout");
         // Increase BFT weight temporarily
         self.stake_weight = 0.8;
         self.storage_weight = 0.2;
@@ -628,7 +628,7 @@ impl HybridEngine {
 
     /// Adjust hybrid parameters
     async fn adjust_hybrid_parameters(&mut self) -> ConsensusResult<()> {
-        tracing::info!("📊 Adjusting hybrid consensus parameters");
+        tracing::info!("Adjusting hybrid consensus parameters");
         // Balance weights based on network conditions
         self.stake_weight = 0.5;
         self.storage_weight = 0.5;
@@ -637,14 +637,14 @@ impl HybridEngine {
 
     /// Record hybrid commitment
     async fn record_hybrid_commitment(&mut self, height: u64, committed_hash: Hash) -> ConsensusResult<()> {
-        tracing::info!("📝 Recording hybrid commitment {} at height {}", committed_hash, height);
+        tracing::info!("Recording hybrid commitment {} at height {}", committed_hash, height);
         
         // In a real implementation:
         // 1. Record both PoW and BFT components of the commitment
         // 2. Update hybrid chain state
         // 3. Adjust difficulty and stake requirements
         
-        tracing::info!("✅ Hybrid block {} committed at height {}", committed_hash, height);
+        tracing::info!("Hybrid block {} committed at height {}", committed_hash, height);
         Ok(())
     }
 }

@@ -114,7 +114,7 @@ impl ConsensusEngine {
             self.validator_identity = Some(identity.clone());
         }
 
-        tracing::info!("✅ Registered validator {:?} with {} ZHTP stake", identity, stake);
+        tracing::info!("Registered validator {:?} with {} ZHTP stake", identity, stake);
         Ok(())
     }
 
@@ -123,16 +123,16 @@ impl ConsensusEngine {
     pub async fn handle_consensus_event(&mut self, event: ConsensusEvent) -> ConsensusResult<Vec<ConsensusEvent>> {
         match event {
             ConsensusEvent::StartRound { height, trigger } => {
-                tracing::info!("🚀 Starting consensus round {} (trigger: {})", height, trigger);
+                tracing::info!(" Starting consensus round {} (trigger: {})", height, trigger);
                 
                 // Log different trigger types for monitoring and debugging
                 match trigger.as_str() {
                     "timeout" => tracing::warn!("⏰ Consensus round triggered by timeout - potential network delays"),
                     "new_transaction" => tracing::debug!("💳 New transaction triggered consensus round"),
-                    "validator_join" => tracing::info!("👤 New validator joining triggered consensus round"),
-                    "validator_leave" => tracing::warn!("👋 Validator leaving triggered consensus round"),
-                    "force_restart" => tracing::warn!("🔄 Manual consensus restart triggered"),
-                    _ => tracing::debug!("🔧 Custom trigger: {}", trigger),
+                    "validator_join" => tracing::info!("New validator joining triggered consensus round"),
+                    "validator_leave" => tracing::warn!(" Validator leaving triggered consensus round"),
+                    "force_restart" => tracing::warn!(" Manual consensus restart triggered"),
+                    _ => tracing::debug!("Custom trigger: {}", trigger),
                 }
                 
                 self.prepare_consensus_round(height).await?;
@@ -143,7 +143,7 @@ impl ConsensusEngine {
                 
                 // Validate blockchain continuity by checking previous hash
                 if let Err(e) = self.validate_previous_hash(height, &previous_hash).await {
-                    tracing::error!("❌ Previous hash validation failed: {}", e);
+                    tracing::error!("Previous hash validation failed: {}", e);
                     return Ok(vec![ConsensusEvent::RoundFailed { 
                         height, 
                         error: format!("Previous hash validation failed: {}", e) 
@@ -199,7 +199,7 @@ impl ConsensusEngine {
             ));
         }
 
-        tracing::info!("🚀 Preparing ZHTP consensus for height {}", height);
+        tracing::info!(" Preparing ZHTP consensus for height {}", height);
         self.current_round.height = height;
         Ok(())
     }
@@ -229,7 +229,7 @@ impl ConsensusEngine {
         self.current_round.proposer = Some(proposer.identity.clone());
 
         tracing::info!(
-            "🎯 Starting consensus round {} at height {} with proposer {:?}",
+            "Starting consensus round {} at height {} with proposer {:?}",
             self.current_round.round, self.current_round.height, proposer.identity
         );
 
@@ -330,7 +330,7 @@ impl ConsensusEngine {
                 self.cast_vote(proposal_id.clone(), VoteType::Commit).await?;
                 
                 tracing::info!(
-                    "✅ Block committed at height {} with proposal {:?}",
+                    "Block committed at height {} with proposal {:?}",
                     self.current_round.height, proposal_id
                 );
 
@@ -388,7 +388,7 @@ impl ConsensusEngine {
         };
 
         tracing::info!(
-            "📋 Created proposal {:?} for height {} by {:?}",
+            "Created proposal {:?} for height {} by {:?}",
             proposal.id, proposal.height, proposal.proposer
         );
 
@@ -824,7 +824,7 @@ impl ConsensusEngine {
             ));
         }
 
-        tracing::debug!("✅ Block validation passed for {:?}", proposal.id);
+        tracing::debug!("Block validation passed for {:?}", proposal.id);
         Ok(())
     }
 
@@ -839,7 +839,7 @@ impl ConsensusEngine {
         
         // For now, just log the application
         tracing::info!(
-            "� Applied block {:?} to state (height: {}, size: {} bytes)",
+            " Applied block {:?} to state (height: {}, size: {} bytes)",
             proposal.id, proposal.height, proposal.block_data.len()
         );
         
@@ -977,7 +977,7 @@ impl ConsensusEngine {
         
         // Check if we have the expected previous block
         if height > 1 {
-            tracing::debug!("🔍 Validating previous hash {} for height {}", previous_hash, height);
+            tracing::debug!("Validating previous hash {} for height {}", previous_hash, height);
             
             // Here we would normally:
             // 1. Query the blockchain storage for block at height-1
@@ -985,7 +985,7 @@ impl ConsensusEngine {
             // 3. Detect potential forks or reorganizations
             
             // For now, we log the validation but don't fail
-            tracing::info!("✅ Previous hash validation passed for height {}", height);
+            tracing::info!("Previous hash validation passed for height {}", height);
         }
 
         Ok(())

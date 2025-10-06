@@ -83,7 +83,7 @@ impl ValidatorManager {
         self.validators.insert(identity.clone(), validator);
         
         tracing::info!(
-            "✅ Registered new validator {:?} with {} ZHTP stake and {} bytes storage",
+            "Registered new validator {:?} with {} ZHTP stake and {} bytes storage",
             identity, stake, storage_provided
         );
         
@@ -96,7 +96,7 @@ impl ValidatorManager {
             self.total_voting_power -= validator.voting_power;
             
             tracing::info!(
-                "❌ Removed validator {:?} from validator set",
+                "Removed validator {:?} from validator set",
                 identity
             );
             

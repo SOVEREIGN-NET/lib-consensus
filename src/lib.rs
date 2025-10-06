@@ -84,7 +84,7 @@ pub enum ConsensusError {
 
 /// Initialize the consensus system with configuration
 pub fn init_consensus(config: ConsensusConfig) -> ConsensusResult<ConsensusEngine> {
-    tracing::info!("🚀 Initializing ZHTP consensus system");
+    tracing::info!(" Initializing ZHTP consensus system");
     Ok(ConsensusEngine::new(config)?)
 }
 

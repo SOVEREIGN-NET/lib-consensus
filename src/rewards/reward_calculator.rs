@@ -83,7 +83,7 @@ impl RewardCalculator {
             self.reward_history.remove(0);
         }
 
-        tracing::info!("💰 Calculated round rewards: {} ZHTP total to {} validators", 
+        tracing::info!("Calculated round rewards: {} ZHTP total to {} validators", 
                       total_rewards, validator_rewards.len());
 
         Ok(reward_round)
@@ -172,7 +172,7 @@ impl RewardCalculator {
 
     /// Update reward multipliers
     pub fn update_work_multiplier(&mut self, work_type: UsefulWorkType, multiplier: f64) {
-        tracing::info!("📊 Updated reward multiplier for {:?}: {}", work_type, multiplier);
+        tracing::info!("Updated reward multiplier for {:?}: {}", work_type, multiplier);
         self.work_multipliers.insert(work_type, multiplier);
     }
 
@@ -180,7 +180,7 @@ impl RewardCalculator {
     pub fn adjust_base_reward(&mut self, new_base_reward: u64) {
         let old_reward = self.base_reward;
         self.base_reward = new_base_reward;
-        tracing::info!("💰 Base reward adjusted: {} -> {} ZHTP", old_reward, new_base_reward);
+        tracing::info!("Base reward adjusted: {} -> {} ZHTP", old_reward, new_base_reward);
     }
 }
 

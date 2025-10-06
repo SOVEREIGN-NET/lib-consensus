@@ -88,7 +88,7 @@ impl BftEngine {
                         tracing::error!("🚨 BFT triggered by Byzantine behavior detection");
                         self.handle_byzantine_trigger().await?;
                     },
-                    _ => tracing::debug!("🔧 BFT trigger: {}", trigger),
+                    _ => tracing::debug!("BFT trigger: {}", trigger),
                 }
                 
                 self.prepare_for_round(height).await?;
@@ -97,13 +97,13 @@ impl BftEngine {
             ConsensusEvent::NewBlock { height, previous_hash } => {
                 match self.run_consensus_round(previous_hash).await {
                     Ok(Some(committed_hash)) => {
-                        tracing::info!("✅ BFT block committed: {} at height {}", committed_hash, height);
+                        tracing::info!("BFT block committed: {} at height {}", committed_hash, height);
                         
                         // Record the committed hash for finality tracking
                         self.record_committed_block(height, committed_hash.clone()).await?;
                         
                         // Notify about successful commitment
-                        tracing::info!("🎯 BFT finality achieved for block {} at height {}", committed_hash, height);
+                        tracing::info!("BFT finality achieved for block {} at height {}", committed_hash, height);
                         
                         Ok(vec![ConsensusEvent::RoundCompleted { height }])
                     }
@@ -143,14 +143,14 @@ impl BftEngine {
         self.current_round.locked_proposal = None;
         self.current_round.valid_proposal = None;
 
-        tracing::info!("🚀 Prepared BFT consensus for height {}", height);
+        tracing::info!(" Prepared BFT consensus for height {}", height);
         Ok(())
     }
 
     /// Run a single BFT consensus round
     async fn run_consensus_round(&mut self, previous_hash: Hash) -> ConsensusResult<Option<Hash>> {
         tracing::info!(
-            "🎯 Starting BFT round {} at height {}",
+            "Starting BFT round {} at height {}",
             self.current_round.round, self.current_round.height
         );
 
@@ -288,7 +288,7 @@ impl BftEngine {
         };
 
         tracing::info!(
-            "📋 Created BFT proposal {:?} for height {} round {}",
+            "Created BFT proposal {:?} for height {} round {}",
             proposal.id, proposal.height, self.current_round.round
         );
 
@@ -451,7 +451,7 @@ impl BftEngine {
         // Keep locked_proposal and valid_proposal for next round
 
         tracing::info!(
-            "🔄 Advanced to BFT round {} at height {}",
+            " Advanced to BFT round {} at height {}",
             self.current_round.round, self.current_round.height
         );
 
@@ -585,7 +585,7 @@ impl BftEngine {
 
     /// Record committed block for finality tracking
     async fn record_committed_block(&mut self, height: u64, committed_hash: Hash) -> ConsensusResult<()> {
-        tracing::info!("📝 Recording committed block {} at height {}", committed_hash, height);
+        tracing::info!("Recording committed block {} at height {}", committed_hash, height);
         
         // In a real implementation, this would:
         // 1. Store the committed hash in persistent storage
@@ -594,7 +594,7 @@ impl BftEngine {
         // 4. Update the longest committed chain
         
         // For now, we just log the commitment
-        tracing::info!("✅ Block {} committed with BFT finality at height {}", committed_hash, height);
+        tracing::info!("Block {} committed with BFT finality at height {}", committed_hash, height);
         
         Ok(())
     }

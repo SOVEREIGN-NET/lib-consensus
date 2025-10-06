@@ -4,7 +4,7 @@ A modularized, multi-layered consensus system combining Proof of Stake, Proof of
 
 ## Features
 
-### 🏗️ Modular Architecture
+###Modular Architecture
 
 - **Consensus Engines**: Pluggable consensus mechanisms (PoS, PoStorage, PoUW, Hybrid, BFT)
 - **Validator Management**: Comprehensive validator registration, slashing, and lifecycle management
@@ -29,7 +29,7 @@ A modularized, multi-layered consensus system combining Proof of Stake, Proof of
 - **Quorum Requirements**: Configurable participation thresholds
 - **Execution Engine**: Automatic execution of passed proposals
 
-### 💰 Economic Incentives
+### Economic Incentives
 
 - **Multi-Type Rewards**: Rewards for validation, useful work, and participation
 - **Dynamic Multipliers**: Adjustable reward rates for different work types

@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
-    println!("🚀 ZHTP Modularized Consensus System Demo");
+    println!(" ZHTP Modularized Consensus System Demo");
     println!("=========================================");
 
     // 1. Initialize consensus engine with hybrid consensus
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
     };
 
     let mut consensus_engine = ConsensusEngine::new(config)?;
-    println!("✅ Consensus engine initialized");
+    println!("Consensus engine initialized");
 
     // 2. Register multiple validators
     let validators = vec![
@@ -78,12 +78,12 @@ async fn main() -> Result<()> {
             i == 0, // First validator is genesis
         ).await?;
 
-        println!("👤 Registered validator {}: {} ZHTP stake, {} GB storage", 
+        println!("Registered validator {}: {} ZHTP stake, {} GB storage", 
                  name, stake / 1_000_000, storage / (1024 * 1024 * 1024));
     }
 
     // 3. Demonstrate DAO governance
-    println!("\n📋 DAO Governance Demo");
+    println!("\nDAO Governance Demo");
     println!("======================");
 
     // Create a treasury allocation proposal
@@ -96,7 +96,7 @@ async fn main() -> Result<()> {
         7, // 7 days voting period
     ).await?;
 
-    println!("📝 Created DAO proposal: Community Development Fund");
+    println!("Created DAO proposal: Community Development Fund");
 
     // Cast votes from different validators
     let voters = vec![
@@ -125,17 +125,17 @@ async fn main() -> Result<()> {
 
     // 4. Show treasury status
     let treasury = consensus_engine.dao_engine().get_dao_treasury();
-    println!("\n💰 Treasury Status:");
+    println!("\nTreasury Status:");
     println!("   Total Balance: {} ZHTP", treasury.total_balance);
     println!("   Available: {} ZHTP", treasury.available_balance);
     println!("   Reserved: {} ZHTP", treasury.reserved_funds);
 
     // 5. Demonstrate validator management
-    println!("\n👥 Validator Management Demo");
+    println!("\nValidator Management Demo");
     println!("============================");
 
     let validator_stats = consensus_engine.validator_manager().get_validator_stats();
-    println!("📊 Validator Statistics:");
+    println!("Validator Statistics:");
     println!("   Total Validators: {}", validator_stats.total_validators);
     println!("   Active Validators: {}", validator_stats.active_validators);
     println!("   Total Stake: {} ZHTP", validator_stats.total_stake / 1_000_000);
@@ -148,16 +148,16 @@ async fn main() -> Result<()> {
 
     // Run a few consensus steps manually for demonstration
     for round in 1..=3 {
-        println!("\n🎯 Consensus Round {}", round);
+        println!("\nConsensus Round {}", round);
         
         // Simulate proposal creation
-        println!("   📋 Proposal created and broadcasted");
+        println!("   Proposal created and broadcasted");
         
         // Simulate voting
         println!("   🗳️ Validators casting prevotes...");
         tokio::time::sleep(Duration::from_millis(500)).await;
         
-        println!("   ✅ Validators casting precommits...");
+        println!("   Validators casting precommits...");
         tokio::time::sleep(Duration::from_millis(500)).await;
         
         println!("   🔒 Block committed to blockchain");
@@ -169,13 +169,13 @@ async fn main() -> Result<()> {
     }
 
     // 7. Demonstrate reward calculation
-    println!("\n💰 Reward Distribution Demo");
+    println!("\nReward Distribution Demo");
     println!("===========================");
 
     // Note: In the actual implementation, rewards would be calculated automatically
     // during consensus rounds. Here we demonstrate the reward system manually.
     
-    println!("📊 Reward calculation completed for active validators");
+    println!("Reward calculation completed for active validators");
     println!("💸 Rewards distributed based on stake, storage, and participation");
 
     // 8. Show final system status
@@ -183,16 +183,16 @@ async fn main() -> Result<()> {
     println!("======================");
     
     let final_treasury = consensus_engine.dao_engine().get_dao_treasury();
-    println!("💰 Treasury: {} ZHTP available", final_treasury.available_balance);
+    println!("Treasury: {} ZHTP available", final_treasury.available_balance);
     
     let final_stats = consensus_engine.validator_manager().get_validator_stats();
-    println!("👥 Active Validators: {}", final_stats.active_validators);
+    println!("Active Validators: {}", final_stats.active_validators);
     
-    println!("🔐 Byzantine threshold: {} voting power", 
+    println!("Byzantine threshold: {} voting power", 
              consensus_engine.validator_manager().get_byzantine_threshold());
 
     println!("\n✨ Demo completed successfully!");
-    println!("🎉 ZHTP modularized consensus system is fully operational!");
+    println!(" ZHTP modularized consensus system is fully operational!");
 
     Ok(())
 }

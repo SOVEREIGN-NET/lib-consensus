@@ -50,7 +50,7 @@ impl DaoEngine {
         self.load_treasury_from_blockchain();
         self.load_proposals_from_blockchain();
         
-        tracing::info!("✅ DAO initialized with {} active proposals", self.dao_proposals.len());
+        tracing::info!("DAO initialized with {} active proposals", self.dao_proposals.len());
     }
     
     /// Load treasury state from blockchain
@@ -92,7 +92,7 @@ impl DaoEngine {
         };
         
         tracing::info!(
-            "📊 Treasury initialized: {} ZHTP total, {} ZHTP available", 
+            "Treasury initialized: {} ZHTP total, {} ZHTP available", 
             self.dao_treasury.total_balance, 
             self.dao_treasury.available_balance
         );
@@ -102,7 +102,7 @@ impl DaoEngine {
     fn load_proposals_from_blockchain(&mut self) {
         // In production, this would query the blockchain for active proposals
         // For now, initialize with empty state
-        tracing::info!("📋 Proposal loading initialized - proposals will be loaded from blockchain");
+        tracing::info!("Proposal loading initialized - proposals will be loaded from blockchain");
     }
 
     /// Create a new DAO proposal
@@ -131,7 +131,7 @@ impl DaoEngine {
                 ));
             }
             
-            tracing::info!("💰 Treasury spending proposal validation passed for proposer: {:?}", proposer);
+            tracing::info!("Treasury spending proposal validation passed for proposer: {:?}", proposer);
         }
 
         // Generate proposal ID
@@ -177,7 +177,7 @@ impl DaoEngine {
         self.dao_votes.insert(proposal_id.clone(), Vec::new());
 
         tracing::info!(
-            "📋 Created DAO proposal {:?}: {} (Type: {:?})",
+            "Created DAO proposal {:?}: {} (Type: {:?})",
             proposal_id, proposal.title, proposal_type
         );
 
@@ -362,7 +362,7 @@ impl DaoEngine {
                     proposal.status = DaoProposalStatus::Failed;
                 }
                 
-                tracing::info!("📊 Processed expired proposal {:?}: {:?}", proposal_id, proposal.status);
+                tracing::info!("Processed expired proposal {:?}: {:?}", proposal_id, proposal.status);
             }
         }
 
@@ -459,7 +459,7 @@ impl DaoEngine {
             },
             _ => {
                 tracing::info!(
-                    "📋 Executing general proposal: {:?} (Approval: {:.1}%, Quorum: {:.1}%)", 
+                    "Executing general proposal: {:?} (Approval: {:.1}%, Quorum: {:.1}%)", 
                     proposal_id, approval_rate, quorum_rate
                 );
             }
