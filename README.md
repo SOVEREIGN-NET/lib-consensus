@@ -13,7 +13,7 @@ A modularized, multi-layered consensus system combining Proof of Stake, Proof of
 - **Reward System**: Fair and transparent reward calculation and distribution
 - **Proof Systems**: Cryptographic proofs for stake, storage, and useful work
 
-### 🛡️ Security Features
+###  Security Features
 
 - **Post-Quantum Cryptography**: Integration with CRYSTALS-Dilithium signatures
 - **ZK Proof Integration**: Zero-knowledge proofs for privacy and efficiency
@@ -21,7 +21,7 @@ A modularized, multi-layered consensus system combining Proof of Stake, Proof of
 - **Slashing Mechanisms**: Economic penalties for misbehavior
 - **Validator Jailing**: Temporary suspension for repeated violations
 
-### 🏛️ DAO Governance
+###  DAO Governance
 
 - **Proposal System**: Create and manage governance proposals
 - **Voting Mechanisms**: Weighted voting based on stake and reputation

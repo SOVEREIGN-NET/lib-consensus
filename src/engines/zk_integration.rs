@@ -31,19 +31,19 @@ impl ZkConsensusIntegration {
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs();
         
-        // Generate simplified identity proof (in production would use real identity verification)
+        // Generate simplified identity proof (in production would use identity verification)
         let identity_secret: [u8; 8] = hash_blake3(identity_data)[..8]
             .try_into()
             .map_err(|_| ConsensusError::ZkError("Failed to convert hash".to_string()))?;
         
-        // Use simplified identity proof parameters - TODO: implement real ZK proofs
+        // Use simplified identity proof parameters - TODO: implement ZK proofs
         let age = 25; // Default age for testing
         let jurisdiction_hash = 12345; // Default jurisdiction
         let credential_hash = 67890; // Default credential
         let min_age = 18;
         let required_jurisdiction = 12345;
         
-        // Generate proof of identity ownership using real Plonky2
+        // Generate proof of identity ownership using Plonky2
         let identity_secret_u64 = u64::from_le_bytes(identity_secret);
         let zk_proof = self.zk_system.prove_identity(
             identity_secret_u64,

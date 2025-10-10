@@ -702,7 +702,7 @@ impl ConsensusEngine {
         self.validator_manager.update_validator_activity(validator_id);
 
         tracing::debug!(
-            "🗳️ Cast {:?} vote on proposal {:?} from validator {:?}",
+            " Cast {:?} vote on proposal {:?} from validator {:?}",
             vote_type, proposal_id, validator_id
         );
 
@@ -792,7 +792,7 @@ impl ConsensusEngine {
             }
             
             tracing::info!(
-                "📦 Successfully processed committed block: {:?} at height {}",
+                " Successfully processed committed block: {:?} at height {}",
                 proposal.id, proposal.height
             );
         }
@@ -866,7 +866,7 @@ impl ConsensusEngine {
             }
         }
 
-        tracing::debug!("📈 Updated validator metrics for block {:?}", proposal.id);
+        tracing::debug!(" Updated validator metrics for block {:?}", proposal.id);
         Ok(())
     }
 
@@ -973,7 +973,7 @@ impl ConsensusEngine {
         }
 
         // For subsequent blocks, validate against the actual chain state
-        // In a real implementation, this would check against stored blockchain state
+        // In a implementation, this would check against stored blockchain state
         
         // Check if we have the expected previous block
         if height > 1 {

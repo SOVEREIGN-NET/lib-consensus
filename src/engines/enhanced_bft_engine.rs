@@ -1,4 +1,4 @@
-//! Enhanced Consensus Engine with Real ZK and Crypto Integration
+//! Enhanced Consensus Engine with ZK and Crypto Integration
 //!
 //! This module provides production-ready consensus validation using real
 //! zero-knowledge proofs and post-quantum cryptography from lib-proofs and lib-crypto.
@@ -7,7 +7,7 @@ use std::collections::{HashMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Result;
 
-// Import real ZK and crypto functionality
+// Import ZK and crypto functionality
 use lib_proofs::{ZkProofSystem, initialize_zk_system};
 use lib_crypto::{
     verification::verify_signature,
@@ -23,7 +23,7 @@ use crate::types::{
 use crate::validators::ValidatorManager;
 use crate::byzantine::ByzantineFaultDetector;
 
-/// Enhanced BFT consensus engine with real ZK verification
+/// Enhanced BFT consensus engine with ZK verification
 pub struct EnhancedBftEngine {
     /// Current consensus round
     current_round: ConsensusRound,
@@ -222,7 +222,7 @@ impl EnhancedBftEngine {
         let transactions = self.deserialize_block_transactions(&proposal.block_data)?;
         
         for (index, tx_data) in transactions.iter().enumerate() {
-            // In a real implementation, this would deserialize the transaction
+            // In a implementation, this would deserialize the transaction
             // and validate it using EnhancedTransactionValidator
             if tx_data.is_empty() {
                 return Err(anyhow::anyhow!("Empty transaction at index {}", index));
@@ -568,7 +568,7 @@ impl EnhancedBftEngine {
                     vote.signature.public_key = keypair.public_key.clone();
                 },
                 Err(_) => {
-                    // Keep test signature if real signing fails
+                    // Keep test signature if signing fails
                 }
             }
         }

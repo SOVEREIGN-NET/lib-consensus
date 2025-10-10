@@ -167,7 +167,7 @@ async fn test_byzantine_fault_handling() -> Result<()> {
     
     // Simulate slashing for double signing
     // For now, we'll just check that slashing is possible through the validator manager
-    // Note: In a real implementation, slashing would be done through specific consensus engine methods
+    // Note: In a implementation, slashing would be done through specific consensus engine methods
     let validator_count_before = consensus_engine.validator_manager().get_active_validators().len();
     
     // Simulate slashing by checking if byzantine detector can detect faults

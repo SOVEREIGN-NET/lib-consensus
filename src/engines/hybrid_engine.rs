@@ -357,7 +357,7 @@ impl HybridEngine {
             .insert(vote.id.clone(), vote);
 
         tracing::debug!(
-            "🗳️ Cast hybrid {:?} vote on proposal {:?}",
+            " Cast hybrid {:?} vote on proposal {:?}",
             vote_type, proposal_id
         );
 
@@ -639,7 +639,7 @@ impl HybridEngine {
     async fn record_hybrid_commitment(&mut self, height: u64, committed_hash: Hash) -> ConsensusResult<()> {
         tracing::info!("Recording hybrid commitment {} at height {}", committed_hash, height);
         
-        // In a real implementation:
+        // In a implementation:
         // 1. Record both PoW and BFT components of the commitment
         // 2. Update hybrid chain state
         // 3. Adjust difficulty and stake requirements

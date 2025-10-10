@@ -2,7 +2,7 @@
 
 This document provides comprehensive documentation for all core types, structures, and enums used throughout the ZHTP Consensus System.
 
-## 📋 Overview
+##  Overview
 
 The ZHTP Consensus System uses a rich type system to ensure type safety, clear APIs, and maintainable code. This documentation covers all fundamental data structures, enumerations, and type aliases used across the system.
 
@@ -109,7 +109,7 @@ pub enum ValidatorStatus {
 - `Jailed` → `Active`: After jail period expires and conditions met
 - `Slashed` → `Inactive`: Permanent removal after severe violations
 
-## 🗳️ Consensus Voting Types
+##  Consensus Voting Types
 
 ### VoteType
 
@@ -163,7 +163,7 @@ pub enum ConsensusStep {
 4. `PreCommit` → `Commit`: After sufficient precommits collected
 5. `Commit` → `NewRound`: After block committed successfully
 
-## 📊 Consensus Data Structures
+##  Consensus Data Structures
 
 ### ConsensusRound
 
@@ -320,7 +320,7 @@ pub struct NetworkState {
 - Dynamic parameter adjustment
 - Economic model inputs
 
-## ⚙️ Configuration Types
+##  Configuration Types
 
 ### ConsensusConfig
 
@@ -384,7 +384,7 @@ impl Default for ConsensusConfig {
 }
 ```
 
-## 🛡️ Security and Slashing Types
+##  Security and Slashing Types
 
 ### SlashType
 
@@ -454,7 +454,7 @@ pub enum ConsensusEvent {
 - **Error Events**: Byzantine faults, DAO errors, reward errors
 - **Status Events**: Round preparation, completion, failures
 
-## 💰 Economic Types
+##  Economic Types
 
 ### ComputeResult
 
@@ -546,7 +546,7 @@ Type alias for consensus operations that may fail.
 pub type ConsensusResult<T> = Result<T, ConsensusError>;
 ```
 
-## 📈 Usage Patterns
+##  Usage Patterns
 
 ### Type-Safe Configuration
 
@@ -625,7 +625,7 @@ The type system is designed for evolution:
 3. **Optional Fields**: New fields use `Option<T>` for compatibility
 4. **Feature Flags**: Types can be conditionally compiled
 
-## 📝 Best Practices
+##  Best Practices
 
 ### Type Usage Guidelines
 

@@ -2,7 +2,7 @@
 
 This document provides comprehensive documentation for all consensus engines in the ZHTP Consensus System, including Byzantine Fault Tolerant (BFT), Enhanced BFT, Hybrid, and Zero-Knowledge integration engines.
 
-## 📋 Overview
+##  Overview
 
 The ZHTP Consensus System implements multiple consensus engines to support different network requirements and security models. Each engine is optimized for specific use cases while maintaining interoperability and shared infrastructure.
 
@@ -231,7 +231,7 @@ async fn run_consensus_round(&mut self) -> ConsensusResult<()> {
     self.current_round.proposer = Some(proposer.identity.clone());
 
     tracing::info!(
-        "🎯 Starting consensus round {} at height {} with proposer {:?}",
+        " Starting consensus round {} at height {} with proposer {:?}",
         self.current_round.round, self.current_round.height, proposer.identity
     );
 
@@ -261,7 +261,7 @@ async fn run_propose_step(&mut self) -> ConsensusResult<()> {
             self.current_round.proposals.push(proposal.id.clone());
             self.pending_proposals.push_back(proposal);
             
-            tracing::info!("📝 Created proposal as proposer");
+            tracing::info!(" Created proposal as proposer");
         }
     }
 
@@ -280,7 +280,7 @@ async fn run_prevote_step(&mut self) -> ConsensusResult<()> {
     // Cast prevote for the first valid proposal
     if let Some(proposal_id) = self.current_round.proposals.first() {
         self.cast_vote(proposal_id.clone(), VoteType::PreVote).await?;
-        tracing::debug!("🗳️ Cast prevote for proposal {:?}", proposal_id);
+        tracing::debug!(" Cast prevote for proposal {:?}", proposal_id);
     }
 
     // Wait for prevotes with timeout
@@ -328,7 +328,7 @@ async fn run_commit_step(&mut self) -> ConsensusResult<()> {
             self.cast_vote(proposal_id.clone(), VoteType::Commit).await?;
             
             tracing::info!(
-                "🎉 Block committed at height {} with proposal {:?}",
+                " Block committed at height {} with proposal {:?}",
                 self.current_round.height, proposal_id
             );
 
@@ -390,7 +390,7 @@ async fn create_proposal(&self) -> ConsensusResult<ConsensusProposal> {
         consensus_proof,
     };
 
-    tracing::info!("📋 Created proposal {:?} for height {}", proposal.id, proposal.height);
+    tracing::info!(" Created proposal {:?} for height {}", proposal.id, proposal.height);
     Ok(proposal)
 }
 ```
@@ -469,7 +469,7 @@ async fn create_consensus_proof(&self) -> ConsensusResult<ConsensusProof> {
 }
 ```
 
-## 🛡️ BFT Engine
+##  BFT Engine
 
 ### Basic BFT Implementation
 
@@ -817,7 +817,7 @@ impl ZkIntegration {
 }
 ```
 
-## 📊 Performance Characteristics
+##  Performance Characteristics
 
 ### Throughput and Latency
 
@@ -923,14 +923,14 @@ impl ConsensusEngine {
             self.config.propose_timeout *= 2;
             self.config.prevote_timeout *= 2;
             self.config.precommit_timeout *= 2;
-            tracing::info!("📈 Increased timeouts due to high network latency");
+            tracing::info!(" Increased timeouts due to high network latency");
         }
         
         // Adjust consensus type based on network conditions
         if metrics.byzantine_faults_detected > 0 && 
            self.config.consensus_type != ConsensusType::ByzantineFaultTolerance {
             self.config.consensus_type = ConsensusType::ByzantineFaultTolerance;
-            tracing::warn!("🛡️ Switched to full BFT due to detected Byzantine faults");
+            tracing::warn!(" Switched to full BFT due to detected Byzantine faults");
         }
         
         // Adjust hybrid weights based on resource availability

@@ -306,7 +306,7 @@ async fn test_expired_proposal_processing() -> Result<()> {
             .unwrap()
             .as_secs() - 3600; // 1 hour ago
         
-        // In a real implementation, we'd need a way to update the proposal
+        // In a implementation, we'd need a way to update the proposal
         // For this test, we'll just verify the processing logic
     }
     

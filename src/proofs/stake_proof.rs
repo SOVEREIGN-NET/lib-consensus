@@ -121,7 +121,7 @@ impl StakeProof {
             return Ok(false);
         }
         
-        // In a real implementation, would verify delegation transaction on-chain
+        // In a implementation, would verify delegation transaction on-chain
         Ok(true)
     }
     

@@ -55,7 +55,7 @@ impl DaoEngine {
     
     /// Load treasury state from blockchain
     fn load_treasury_from_blockchain(&mut self) {
-        // Calculate treasury balance from real collected fees and initial allocation
+        // Calculate treasury balance from collected fees and initial allocation
         let total_dao_proposals = self.dao_proposals.len() as u64;
         let total_votes_cast = self.dao_votes.values().map(|v| v.len()).sum::<usize>() as u64;
         let estimated_transactions = total_dao_proposals * 5 + total_votes_cast;
@@ -284,7 +284,7 @@ impl DaoEngine {
         }
 
         tracing::info!(
-            "🗳️ Vote cast by {:?} on proposal {:?}: {:?} (power: {})",
+            " Vote cast by {:?} on proposal {:?}: {:?} (power: {})",
             voter, proposal_id, vote_choice, voting_power
         );
 
@@ -453,7 +453,7 @@ impl DaoEngine {
                 self.dao_treasury.transaction_history.push(transaction);
                 
                 tracing::info!(
-                    "🏛️ TREASURY ALLOCATION EXECUTED: {} ZHTP allocated (Approval: {:.1}%, Quorum: {:.1}%)", 
+                    " TREASURY ALLOCATION EXECUTED: {} ZHTP allocated (Approval: {:.1}%, Quorum: {:.1}%)", 
                     amount_to_allocate, approval_rate, quorum_rate
                 );
             },

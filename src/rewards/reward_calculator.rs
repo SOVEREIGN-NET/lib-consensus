@@ -140,14 +140,14 @@ impl RewardCalculator {
     /// Distribute rewards to validators
     pub fn distribute_rewards(&self, reward_round: &RewardRound) -> Result<()> {
         for (validator_id, reward) in &reward_round.validator_rewards {
-            // In a real implementation, this would:
+            // In a implementation, this would:
             // 1. Create reward transactions
             // 2. Update validator balances
             // 3. Handle delegation rewards
             // 4. Update staking pools
 
             tracing::info!(
-                "💸 Distributed {} ZHTP to validator {:?} (base: {}, work: {}, participation: {})",
+                " Distributed {} ZHTP to validator {:?} (base: {}, work: {}, participation: {})",
                 reward.total_reward, validator_id, reward.base_reward, 
                 reward.work_bonus, reward.participation_bonus
             );

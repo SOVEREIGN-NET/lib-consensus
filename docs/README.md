@@ -2,7 +2,7 @@
 
 Welcome to the comprehensive documentation for the ZHTP Consensus System - a multi-layered blockchain consensus engine that combines Proof of Stake, Proof of Storage, Proof of Useful Work, and Byzantine Fault Tolerance with integrated DAO governance.
 
-## 🌟 System Overview
+##  System Overview
 
 The ZHTP Consensus System is a sophisticated, modular consensus mechanism designed for the ZHTP blockchain network. It provides:
 
@@ -40,7 +40,7 @@ The ZHTP Consensus System is a sophisticated, modular consensus mechanism design
 
 ## 📚 Documentation Structure
 
-### [🏛️ Architecture Documentation](./architecture/)
+### [ Architecture Documentation](./architecture/)
 - [System Overview](./architecture/OVERVIEW.md) - Complete architectural design
 - [Consensus Flow](./architecture/consensus_flow.md) - Detailed consensus algorithms
 - [Security Model](./architecture/security_model.md) - Threat model and mitigations
@@ -53,7 +53,7 @@ The ZHTP Consensus System is a sophisticated, modular consensus mechanism design
 - [DAO API](./api/dao_api.md) - Governance and treasury operations
 - [Event System](./api/events.md) - Consensus event handling and processing
 
-### [📦 Module Documentation](./modules/)
+### [ Module Documentation](./modules/)
 - [Consensus Engines](./modules/engines/) - BFT, Enhanced BFT, Hybrid implementations
 - [Validator System](./modules/validators/) - Validator lifecycle and management
 - [Proof Systems](./modules/proofs/) - Stake, Storage, and Work proof implementations
@@ -121,7 +121,7 @@ let events = consensus.handle_consensus_event(
 ).await?;
 ```
 
-## 🔑 Key Features
+##  Key Features
 
 ### Multi-Layer Consensus
 - **Hybrid PoS/PoStorage**: Combines stake and storage for balanced incentives
@@ -178,7 +178,7 @@ cargo test validator_manager_tests
 - `rewards` - Enable reward calculation system
 - `zk-proofs` - Enable zero-knowledge proof integration
 
-## 📊 Performance Characteristics
+##  Performance Characteristics
 
 - **Throughput**: 1000+ transactions per block
 - **Block Time**: 6-10 seconds (configurable)

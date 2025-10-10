@@ -73,7 +73,7 @@ impl BftEngine {
     pub async fn handle_consensus_event(&mut self, event: ConsensusEvent) -> ConsensusResult<Vec<ConsensusEvent>> {
         match event {
             ConsensusEvent::StartRound { height, trigger } => {
-                tracing::info!("🏛️ BFT: Starting consensus round {} (trigger: {})", height, trigger);
+                tracing::info!(" BFT: Starting consensus round {} (trigger: {})", height, trigger);
                 
                 // Handle BFT-specific trigger behavior
                 match trigger.as_str() {
@@ -336,7 +336,7 @@ impl BftEngine {
             .insert(vote.id.clone(), vote);
 
         tracing::debug!(
-            "🗳️ Cast BFT {:?} vote on proposal {:?}",
+            " Cast BFT {:?} vote on proposal {:?}",
             vote_type, proposal_id
         );
 
@@ -587,7 +587,7 @@ impl BftEngine {
     async fn record_committed_block(&mut self, height: u64, committed_hash: Hash) -> ConsensusResult<()> {
         tracing::info!("Recording committed block {} at height {}", committed_hash, height);
         
-        // In a real implementation, this would:
+        // In a implementation, this would:
         // 1. Store the committed hash in persistent storage
         // 2. Update finality checkpoints
         // 3. Notify other components about finality

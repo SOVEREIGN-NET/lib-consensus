@@ -120,7 +120,7 @@ async fn main() -> Result<()> {
                 }, name)),
         ).await?;
 
-        println!("🗳️ {} voted {:?} on proposal", name, vote_choice);
+        println!(" {} voted {:?} on proposal", name, vote_choice);
     }
 
     // 4. Show treasury status
@@ -154,7 +154,7 @@ async fn main() -> Result<()> {
         println!("   Proposal created and broadcasted");
         
         // Simulate voting
-        println!("   🗳️ Validators casting prevotes...");
+        println!("    Validators casting prevotes...");
         tokio::time::sleep(Duration::from_millis(500)).await;
         
         println!("   Validators casting precommits...");
@@ -164,7 +164,7 @@ async fn main() -> Result<()> {
         
         // Show current round info
         let current_round = consensus_engine.current_round();
-        println!("   📈 Round {}, Height {}, Step: {:?}", 
+        println!("    Round {}, Height {}, Step: {:?}", 
                 current_round.round, current_round.height, current_round.step);
     }
 
@@ -176,10 +176,10 @@ async fn main() -> Result<()> {
     // during consensus rounds. Here we demonstrate the reward system manually.
     
     println!("Reward calculation completed for active validators");
-    println!("💸 Rewards distributed based on stake, storage, and participation");
+    println!(" Rewards distributed based on stake, storage, and participation");
 
     // 8. Show final system status
-    println!("\n📈 Final System Status");
+    println!("\n Final System Status");
     println!("======================");
     
     let final_treasury = consensus_engine.dao_engine().get_dao_treasury();

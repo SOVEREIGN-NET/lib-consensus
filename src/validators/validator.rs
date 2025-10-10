@@ -221,7 +221,7 @@ impl Validator {
         self.update_voting_power();
         
         tracing::info!(
-            "💸 Validator {:?} removed {} ZHTP stake (remaining: {} ZHTP)",
+            " Validator {:?} removed {} ZHTP stake (remaining: {} ZHTP)",
             self.identity, amount, self.stake
         );
         

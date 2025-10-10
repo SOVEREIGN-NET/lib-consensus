@@ -81,14 +81,14 @@ impl StorageProof {
     
     /// Verify a single challenge response
     fn verify_challenge_response(&self, challenge: &StorageChallenge) -> Result<bool> {
-        // In a real implementation, this would verify the cryptographic challenge-response
+        // In a implementation, this would verify the cryptographic challenge-response
         // For now, just check that response is not empty
         Ok(!challenge.response.is_empty() && challenge.response.len() >= challenge.challenge.len())
     }
     
     /// Verify merkle proof of stored data
     fn verify_merkle_proof(&self) -> Result<bool> {
-        // In a real implementation, this would verify the Merkle tree proof
+        // In a implementation, this would verify the Merkle tree proof
         // For now, just check that proof exists
         Ok(!self.merkle_proof.is_empty())
     }
