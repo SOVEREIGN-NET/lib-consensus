@@ -120,7 +120,7 @@ impl Validator {
         self.update_voting_power();
         
         tracing::warn!(
-            "⚡ Validator {:?} slashed {} ZHTP for {:?} (slash count: {})",
+            " Validator {:?} slashed {} ZHTP for {:?} (slash count: {})",
             self.identity, slash_amount, slash_type, self.slash_count
         );
         
@@ -138,7 +138,7 @@ impl Validator {
         self.jail_until = Some(current_time + duration_seconds);
         
         tracing::warn!(
-            "🔒 Validator {:?} jailed until timestamp {}",
+            " Validator {:?} jailed until timestamp {}",
             self.identity, self.jail_until.unwrap()
         );
     }

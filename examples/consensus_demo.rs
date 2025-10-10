@@ -143,7 +143,7 @@ async fn main() -> Result<()> {
     println!("   Total Voting Power: {}", validator_stats.total_voting_power);
 
     // 6. Simulate consensus rounds (shortened for demo)
-    println!("\n⚡ Running Consensus Rounds (Demo Mode)");
+    println!("\n Running Consensus Rounds (Demo Mode)");
     println!("======================================");
 
     // Run a few consensus steps manually for demonstration
@@ -160,7 +160,7 @@ async fn main() -> Result<()> {
         println!("   Validators casting precommits...");
         tokio::time::sleep(Duration::from_millis(500)).await;
         
-        println!("   🔒 Block committed to blockchain");
+        println!("    Block committed to blockchain");
         
         // Show current round info
         let current_round = consensus_engine.current_round();

@@ -85,7 +85,7 @@ impl BftEngine {
                         tracing::debug!("💳 BFT processing new transactions");
                     },
                     "validator_byzantine" => {
-                        tracing::error!("🚨 BFT triggered by Byzantine behavior detection");
+                        tracing::error!(" BFT triggered by Byzantine behavior detection");
                         self.handle_byzantine_trigger().await?;
                     },
                     _ => tracing::debug!("BFT trigger: {}", trigger),
@@ -576,7 +576,7 @@ impl BftEngine {
 
     /// Handle Byzantine fault trigger
     async fn handle_byzantine_trigger(&mut self) -> ConsensusResult<()> {
-        tracing::error!("🚨 BFT handling Byzantine fault trigger");
+        tracing::error!(" BFT handling Byzantine fault trigger");
         // Reset round state and increase security measures
         self.current_round.step = ConsensusStep::Propose;
         self.current_round.proposer = None; // Clear proposer to force re-selection

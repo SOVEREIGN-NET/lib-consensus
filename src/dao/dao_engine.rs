@@ -420,7 +420,7 @@ impl DaoEngine {
                 // CRITICAL TREASURY PROTECTION: Double-check consensus before fund release
                 if approval_rate < 60.0 {
                     return Err(anyhow::anyhow!(
-                        "🚨 TREASURY PROTECTION: Treasury funds require 60% approval minimum. Got: {:.1}%",
+                        " TREASURY PROTECTION: Treasury funds require 60% approval minimum. Got: {:.1}%",
                         approval_rate
                     ));
                 }
@@ -430,7 +430,7 @@ impl DaoEngine {
                 // Verify treasury has sufficient funds
                 if self.dao_treasury.available_balance < amount_to_allocate {
                     return Err(anyhow::anyhow!(
-                        "🚨 TREASURY PROTECTION: Insufficient treasury funds. Available: {} ZHTP, Requested: {} ZHTP",
+                        " TREASURY PROTECTION: Insufficient treasury funds. Available: {} ZHTP, Requested: {} ZHTP",
                         self.dao_treasury.available_balance, amount_to_allocate
                     ));
                 }

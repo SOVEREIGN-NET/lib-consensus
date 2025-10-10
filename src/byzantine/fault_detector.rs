@@ -225,7 +225,7 @@ impl ByzantineFaultDetector {
             }
 
             tracing::warn!(
-                "🚨 Byzantine fault detected: {:?} by validator {:?} - {}",
+                " Byzantine fault detected: {:?} by validator {:?} - {}",
                 fault.fault_type, fault.validator, fault.evidence
             );
         }
