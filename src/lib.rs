@@ -13,6 +13,7 @@ pub mod proofs;
 pub mod byzantine;
 pub mod dao;
 pub mod rewards;
+pub mod mesh_consensus;  // NEW: Mesh consensus for local networks
 
 // Re-export commonly used types
 pub use types::*;
@@ -20,6 +21,12 @@ pub use engines::ConsensusEngine;
 pub use engines::enhanced_bft_engine::{EnhancedBftEngine, ConsensusStatus};
 pub use validators::{Validator, ValidatorManager};
 pub use proofs::*;
+
+// Re-export mesh consensus types
+pub use mesh_consensus::{
+    MeshConsensusEngine, ConsensusMessage, ConsensusVote, 
+    MeshValidator, ValidatorSet, RoundPhase,
+};
 
 #[cfg(feature = "dao")]
 pub use dao::*;
