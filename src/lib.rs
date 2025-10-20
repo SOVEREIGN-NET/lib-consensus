@@ -13,6 +13,7 @@ pub mod proofs;
 pub mod byzantine;
 pub mod dao;
 pub mod rewards;
+pub mod chain_evaluation;
 
 // Re-export commonly used types
 pub use types::*;
@@ -20,6 +21,7 @@ pub use engines::ConsensusEngine;
 pub use engines::enhanced_bft_engine::{EnhancedBftEngine, ConsensusStatus};
 pub use validators::{Validator, ValidatorManager};
 pub use proofs::*;
+pub use chain_evaluation::{ChainEvaluator, ChainDecision, ChainMergeResult, ChainSummary};
 
 #[cfg(feature = "dao")]
 pub use dao::*;
