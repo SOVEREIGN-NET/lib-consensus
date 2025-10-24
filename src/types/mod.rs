@@ -222,6 +222,8 @@ pub struct ConsensusConfig {
     pub slash_double_sign: u8,
     /// Slashing percentage for liveness violation
     pub slash_liveness: u8,
+    /// Development mode flag - allows single validator consensus for testing
+    pub development_mode: bool,
 }
 
 impl Default for ConsensusConfig {
@@ -241,6 +243,7 @@ impl Default for ConsensusConfig {
             byzantine_threshold: 1.0 / 3.0, // 1/3 Byzantine tolerance
             slash_double_sign: 5, // 5% slash for double signing
             slash_liveness: 1, // 1% slash for liveness violation
+            development_mode: false, // Production mode by default
         }
     }
 }

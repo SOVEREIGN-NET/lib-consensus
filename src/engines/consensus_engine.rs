@@ -43,10 +43,10 @@ pub struct ConsensusEngine {
 impl ConsensusEngine {
     /// Create a new consensus engine
     pub fn new(config: ConsensusConfig) -> ConsensusResult<Self> {
-        let validator_manager = ValidatorManager::new(
+        let validator_manager = ValidatorManager::new_with_development_mode(
             config.max_validators,
             config.min_stake,
-            config.min_storage,
+            config.development_mode,
         );
 
         let current_round = ConsensusRound {

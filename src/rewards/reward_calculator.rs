@@ -91,15 +91,26 @@ impl RewardCalculator {
 
     /// Calculate reward for a single validator
     fn calculate_validator_reward(&self, validator: &crate::validators::Validator) -> Result<ValidatorReward> {
-        // Base reward based on stake and storage
+        // Base reward based primarily on stake (traditional validator model)
         let stake_factor = (validator.stake as f64).sqrt() / 1000.0;
-        let storage_factor = (validator.storage_provided as f64) / (1024.0 * 1024.0 * 1024.0); // GB
-        let base_reward = (self.base_reward as f64 * (stake_factor + storage_factor * 0.1)) as u64;
+        let base_reward = (self.base_reward as f64 * stake_factor) as u64;
+
+        // Optional storage bonus (only if validator provides storage)
+        let storage_bonus = if validator.storage_provided > 0 {
+            let storage_gb = validator.storage_provided as f64 / (1024.0 * 1024.0 * 1024.0);
+            (base_reward as f64 * 0.1 * storage_gb.ln().max(0.0)).min(base_reward as f64 * 0.2) as u64
+        } else {
+            0
+        };
 
         // Work bonuses (simplified - in production would use actual work proofs)
         let mut work_breakdown = HashMap::new();
-        let routing_work = validator.voting_power / 10; // Simplified calculation
-        let storage_work = validator.storage_provided / (1024 * 1024 * 1024); // GB
+        let routing_work = validator.voting_power / 10; // All validators do consensus work
+        let storage_work = if validator.storage_provided > 0 {
+            validator.storage_provided / (1024 * 1024 * 1024) // GB storage provided
+        } else {
+            0
+        };
         let compute_work = validator.reputation as u64 / 10; // Based on reputation
 
         work_breakdown.insert(UsefulWorkType::NetworkRouting, routing_work);

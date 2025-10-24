@@ -15,21 +15,32 @@ pub struct ValidatorManager {
     max_validators: u32,
     /// Minimum stake required to be a validator
     min_stake: u64,
-    /// Minimum storage required to be a validator
-    min_storage: u64,
     /// Total voting power of all active validators
     total_voting_power: u64,
+    /// Development mode flag - allows single validator consensus
+    development_mode: bool,
 }
 
 impl ValidatorManager {
     /// Create a new validator manager
-    pub fn new(max_validators: u32, min_stake: u64, min_storage: u64) -> Self {
+    pub fn new(max_validators: u32, min_stake: u64) -> Self {
         Self {
             validators: HashMap::new(),
             max_validators,
             min_stake,
-            min_storage,
             total_voting_power: 0,
+            development_mode: false,
+        }
+    }
+    
+    /// Create a new validator manager with development mode
+    pub fn new_with_development_mode(max_validators: u32, min_stake: u64, development_mode: bool) -> Self {
+        Self {
+            validators: HashMap::new(),
+            max_validators,
+            min_stake,
+            total_voting_power: 0,
+            development_mode,
         }
     }
     
@@ -42,7 +53,7 @@ impl ValidatorManager {
         consensus_key: Vec<u8>,
         commission_rate: u8,
     ) -> Result<()> {
-        // Check minimum requirements
+        // Check minimum requirements - ONLY stake is required for validators
         if stake < self.min_stake {
             return Err(anyhow::anyhow!(
                 "Insufficient stake: {} < {} required",
@@ -50,12 +61,8 @@ impl ValidatorManager {
             ));
         }
         
-        if storage_provided < self.min_storage {
-            return Err(anyhow::anyhow!(
-                "Insufficient storage: {} < {} required",
-                storage_provided, self.min_storage
-            ));
-        }
+        // Storage is OPTIONAL for validators - no minimum requirement
+        // Validators can choose to provide storage for bonus rewards but it's not mandatory
         
         // Check maximum validator limit
         if self.validators.len() >= self.max_validators as usize {
@@ -229,7 +236,14 @@ impl ValidatorManager {
     
     /// Check if we have enough validators for consensus
     pub fn has_sufficient_validators(&self) -> bool {
-        self.get_active_validators().len() >= 4 // Minimum 4 validators for BFT
+        let active_count = self.get_active_validators().len();
+        if self.development_mode {
+            // In development mode, allow single validator for testing
+            active_count >= 1
+        } else {
+            // Production mode requires minimum 4 validators for BFT
+            active_count >= 4
+        }
     }
     
     /// Get validator statistics

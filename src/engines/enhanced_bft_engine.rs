@@ -680,7 +680,7 @@ pub mod testing {
     /// Create test enhanced BFT engine
     pub fn create_test_enhanced_bft_engine() -> Result<EnhancedBftEngine> {
         let config = ConsensusConfig::default();
-        let validator_manager = ValidatorManager::new(10, 1000, 1024 * 1024 * 1024);
+        let validator_manager = ValidatorManager::new(10, 1000);
         let validator_identity = Some(IdentityId::from_bytes(b"test_validator_identity_32_bytes"));
         
         let mut engine = EnhancedBftEngine::new(config, validator_manager, validator_identity)?;

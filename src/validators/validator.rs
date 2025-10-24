@@ -60,13 +60,21 @@ impl Validator {
         }
     }
     
-    /// Calculate voting power based on stake and storage
+    /// Calculate voting power based primarily on stake, with optional storage bonus
     fn calculate_voting_power(stake: u64, storage_provided: u64) -> u64 {
-        // Combine stake and storage with different weights
-        let stake_weight = (stake as f64).sqrt() * 0.7; // 70% weight to stake
-        let storage_weight = (storage_provided as f64 / (1024.0 * 1024.0 * 1024.0)) * 0.3; // 30% weight to storage (in GB)
+        // Primary voting power comes from stake (traditional validator model)
+        let base_power = (stake as f64).sqrt();
         
-        (stake_weight + storage_weight) as u64
+        // Optional storage bonus (max 20% bonus for significant storage)
+        let storage_bonus = if storage_provided > 0 {
+            let storage_gb = storage_provided as f64 / (1024.0 * 1024.0 * 1024.0);
+            (storage_gb.ln().max(0.0) * 0.1).min(0.2) // Logarithmic bonus, capped at 20%
+        } else {
+            0.0
+        };
+        
+        let total_power = base_power * (1.0 + storage_bonus);
+        total_power as u64
     }
     
     /// Update validator's voting power when stake or storage changes
