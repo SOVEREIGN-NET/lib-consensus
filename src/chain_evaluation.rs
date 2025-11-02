@@ -14,8 +14,10 @@ pub enum ChainDecision {
     KeepLocal,
     /// Adopt the imported chain (it's better)
     AdoptImported,
-    /// Chains are compatible and can be merged
+    /// Chains are compatible and can be merged (similar height)
     Merge,
+    /// Import shorter chain's unique content into longer chain
+    MergeContentOnly,
     /// Chains conflict and manual resolution needed
     Conflict,
 }
@@ -29,6 +31,8 @@ pub enum ChainMergeResult {
     ImportedAdopted,
     /// Chains were successfully merged
     Merged,
+    /// Unique content from imported chain was merged into local
+    ContentMerged,
     /// Merge failed due to conflicts
     Failed(String),
 }
@@ -76,9 +80,14 @@ impl ChainEvaluator {
         }
 
         // Rule 3: Longest chain wins (most blocks)
+        // BUT preserve unique content from shorter chain
         if imported.height > local.height {
             return ChainDecision::AdoptImported;
         } else if local.height > imported.height {
+            // Check if imported chain has unique content worth preserving
+            if Self::has_unique_content(local, imported) {
+                return ChainDecision::MergeContentOnly;
+            }
             return ChainDecision::KeepLocal;
         }
 
@@ -333,6 +342,24 @@ impl ChainEvaluator {
         local.total_contracts == imported.total_contracts &&
         local.genesis_timestamp == imported.genesis_timestamp
         // Note: In full implementation, would compare actual content hashes
+    }
+
+    /// Check if imported chain has unique content worth preserving
+    /// Used when local chain is longer but imported has valuable data
+    fn has_unique_content(local: &ChainSummary, imported: &ChainSummary) -> bool {
+        // If imported chain has any unique identities, wallets, contracts, or UTXOs
+        // that might not exist in the longer local chain, return true
+        
+        // Heuristic: If imported has content but much smaller numbers than local,
+        // it might still have unique identities/contracts not in local chain
+        if imported.total_identities > 0 || 
+           imported.total_contracts > 0 || 
+           imported.total_utxos > 0 ||
+           imported.total_transactions > 0 {
+            return true; // Has content that should be checked
+        }
+        
+        false // No unique content
     }
 
     /// Create chain summary from blockchain data
