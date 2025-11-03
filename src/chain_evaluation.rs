@@ -69,8 +69,21 @@ pub struct ChainEvaluator;
 impl ChainEvaluator {
     /// Compare two chains and decide which should be adopted
     pub fn evaluate_chains(local: &ChainSummary, imported: &ChainSummary) -> ChainDecision {
+        // Rule 0: Special case - if local chain is genesis-only (height 0-1) with minimal activity,
+        // adopt the imported chain regardless of genesis hash mismatch.
+        // This handles the case where a node just started and created its own genesis,
+        // then discovered a peer with an existing network.
+        if Self::is_genesis_only_chain(local) && !Self::is_genesis_only_chain(imported) {
+            // Local is empty, imported has real activity - adopt imported
+            return ChainDecision::AdoptImported;
+        }
+        
         // Rule 1: Genesis hash must match (same network)
         if local.genesis_hash != imported.genesis_hash {
+            // Different genesis hashes - check if we should still adopt
+            if Self::should_adopt_despite_genesis_mismatch(local, imported) {
+                return ChainDecision::AdoptImported;
+            }
             return ChainDecision::Conflict;
         }
 
@@ -400,6 +413,53 @@ impl ChainEvaluator {
             expected_tps,
             network_size,
         }
+    }
+    
+    /// Check if a chain is essentially genesis-only (no real activity)
+    /// This detects chains that were just created and haven't processed any real transactions
+    fn is_genesis_only_chain(chain: &ChainSummary) -> bool {
+        // A genesis-only chain has:
+        // 1. Height of 0 or 1 (just genesis block, maybe one system tx block)
+        // 2. Minimal identities (0-1, just the bootstrap validator)
+        // 3. Minimal transactions (1-2, just genesis funding)
+        // 4. Short chain age (less than 5 minutes)
+        
+        let chain_age_seconds = chain.latest_timestamp.saturating_sub(chain.genesis_timestamp);
+        let is_fresh = chain_age_seconds < 300; // Less than 5 minutes old
+        
+        chain.height <= 1 
+            && chain.total_identities <= 1
+            && chain.total_transactions <= 2
+            && is_fresh
+    }
+    
+    /// Decide if we should adopt imported chain despite genesis hash mismatch
+    /// This handles the case where a new node created its own genesis, then discovered
+    /// an existing network with real activity
+    fn should_adopt_despite_genesis_mismatch(local: &ChainSummary, imported: &ChainSummary) -> bool {
+        // Case 1: Local is genesis-only, imported has real activity
+        if Self::is_genesis_only_chain(local) && !Self::is_genesis_only_chain(imported) {
+            return true;
+        }
+        
+        // Case 2: Both are genesis-only, adopt the older one (earlier genesis timestamp)
+        if Self::is_genesis_only_chain(local) && Self::is_genesis_only_chain(imported) {
+            return imported.genesis_timestamp < local.genesis_timestamp;
+        }
+        
+        // Case 3: Local has minimal activity (< 5 identities, < 10 transactions)
+        // but imported has significant activity
+        if local.height <= 5 
+            && local.total_identities < 5 
+            && local.total_transactions < 10
+            && imported.height > local.height * 2  // Imported is significantly longer
+            && imported.total_identities > 5 
+        {
+            return true;
+        }
+        
+        // Otherwise, respect genesis hash mismatch - they're different networks
+        false
     }
 }
 
