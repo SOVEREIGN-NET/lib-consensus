@@ -15,12 +15,16 @@ pub enum ChainDecision {
     KeepLocal,
     /// Adopt the imported chain (it's better)
     AdoptImported,
+    /// Local chain is stronger - use as merge base, import content from remote
+    AdoptLocal,
     /// Chains are compatible and can be merged (similar height)
     Merge,
     /// Import shorter chain's unique content into longer chain
     MergeContentOnly,
     /// Chains conflict and manual resolution needed
     Conflict,
+    /// Chains are incompatible and cannot be merged safely
+    Reject,
 }
 
 /// Result of chain merge operation
@@ -79,22 +83,20 @@ impl ChainEvaluator {
             return ChainDecision::AdoptImported;
         }
         
-        // Rule 0b: CRITICAL - Both chains are genesis-only with different genesis hashes
-        // This happens when two nodes start simultaneously and discover each other.
-        // We must merge them to consolidate both validators into a single network.
+        // Rule 0b: CRITICAL - Different genesis hashes means different network origins
+        // Use score-based evaluation to determine which chain should be the merge base
+        // This prevents a 1000-validator network from being absorbed by a 5-validator network
         if local.genesis_hash != imported.genesis_hash {
             info!("🔍 Genesis hash mismatch detected during evaluation");
             info!("   Local genesis:    {}", local.genesis_hash);
             info!("   Imported genesis: {}", imported.genesis_hash);
+            info!("   Local network: {} validators, {} identities, height {}", 
+                  local.validator_count, local.total_identities, local.height);
+            info!("   Imported network: {} validators, {} identities, height {}", 
+                  imported.validator_count, imported.total_identities, imported.height);
             
-            if Self::is_genesis_only_chain(local) && Self::is_genesis_only_chain(imported) {
-                info!("✅ Both chains are genesis-only - will merge to consolidate validators");
-                // Both chains are fresh genesis blocks - merge them
-                return ChainDecision::AdoptImported; // Will trigger genesis mismatch merge in blockchain.rs
-            } else {
-                info!("   Local genesis-only: {}", Self::is_genesis_only_chain(local));
-                info!("   Imported genesis-only: {}", Self::is_genesis_only_chain(imported));
-            }
+            // Evaluate which chain should be the merge base
+            return Self::evaluate_genesis_mismatch(local, imported);
         }
         
         // Rule 1: Genesis hash must match (same network)
@@ -441,25 +443,160 @@ impl ChainEvaluator {
         // 1. Height of 0 or 1 (just genesis block, maybe one system tx block)
         // 2. Minimal identities (0-1, just the bootstrap validator)
         // 3. Minimal transactions (1-2, just genesis funding)
-        // 4. Short chain age (less than 5 minutes)
-        
-        let chain_age_seconds = chain.latest_timestamp.saturating_sub(chain.genesis_timestamp);
-        let is_fresh = chain_age_seconds < 300; // Less than 5 minutes old
+        // Note: We DON'T check age because genesis timestamps may be 0 or very low
+        //       The structural checks (height, identities, txs) are sufficient
         
         let height_check = chain.height <= 1;
         let identity_check = chain.total_identities <= 1;
         let tx_check = chain.total_transactions <= 2;
         
-        info!("   🔍 Genesis-only check: height={} (<=1? {}), identities={} (<=1? {}), txs={} (<=2? {}), age={}s (fresh? {})",
+        info!("   🔍 Genesis-only check: height={} (<=1? {}), identities={} (<=1? {}), txs={} (<=2? {})",
               chain.height, height_check, chain.total_identities, identity_check, 
-              chain.total_transactions, tx_check, chain_age_seconds, is_fresh);
+              chain.total_transactions, tx_check);
         
-        height_check && identity_check && tx_check && is_fresh
+        height_check && identity_check && tx_check
+    }
+    
+    /// Evaluate which chain should be the merge base when genesis hashes differ
+    /// Uses score-based system to select the stronger, more established network
+    /// This prevents security downgrades (e.g., 1000 validators absorbed by 5 validators)
+    fn evaluate_genesis_mismatch(local: &ChainSummary, imported: &ChainSummary) -> ChainDecision {
+        info!("⚖️  Evaluating genesis mismatch - determining merge base");
+        
+        // 1. Calculate weighted scores for each chain (security + economic activity)
+        let local_score = Self::calculate_merge_score(local);
+        let imported_score = Self::calculate_merge_score(imported);
+        
+        info!("   Local merge score:    {} points", local_score);
+        info!("   Imported merge score: {} points", imported_score);
+        
+        // 2. Safety check - ensure networks are compatible enough to merge
+        if !Self::are_networks_compatible(local, imported) {
+            info!("❌ Networks are incompatible - merge rejected for safety");
+            return ChainDecision::Reject;
+        }
+        
+        // 3. Select the stronger chain as the merge base
+        // The weaker chain's unique content (identities, validators, UTXOs) will be
+        // imported into the stronger chain to preserve all user data
+        if imported_score > local_score {
+            info!("✅ Imported chain is stronger - will be used as merge base");
+            info!("   → Local identities and validators will be preserved");
+            ChainDecision::AdoptImported
+        } else if local_score > imported_score {
+            info!("✅ Local chain is stronger - will be used as merge base");
+            info!("   → Imported identities and validators will be preserved");
+            ChainDecision::AdoptLocal
+        } else {
+            // Exact tie - use genesis timestamp as tiebreaker (older = more established)
+            info!("⚖️  Exact tie - using genesis timestamp tiebreaker");
+            if imported.genesis_timestamp < local.genesis_timestamp {
+                info!("✅ Imported chain is older - will be used as merge base");
+                ChainDecision::AdoptImported
+            } else if local.genesis_timestamp < imported.genesis_timestamp {
+                info!("✅ Local chain is older - will be used as merge base");
+                ChainDecision::AdoptLocal
+            } else {
+                // Extremely rare: same score AND same genesis timestamp
+                // Use genesis hash comparison as final deterministic tiebreaker
+                info!("⚠️  Perfect tie - using genesis hash comparison");
+                if imported.genesis_hash < local.genesis_hash {
+                    ChainDecision::AdoptImported
+                } else {
+                    ChainDecision::AdoptLocal
+                }
+            }
+        }
+    }
+    
+    /// Calculate merge score based on security and economic activity
+    /// Prioritizes: Validators > Identities > Transactions > Work
+    /// This ensures established, secure networks are preferred as merge bases
+    fn calculate_merge_score(chain: &ChainSummary) -> u64 {
+        // Weights prioritize security (validators) over everything else
+        let validator_score = chain.validator_count * 100;        // 1 validator = 100 points
+        let identity_score = chain.total_identities * 10;         // 1 identity = 10 points  
+        let transaction_score = chain.total_transactions;         // 1 transaction = 1 point
+        let work_score = (chain.total_work / 100_000) as u64;    // Total work (scaled down)
+        let stake_score = (chain.total_validator_stake / 1000) as u64; // Validator stake weight
+        
+        let total_score = validator_score 
+            + identity_score 
+            + transaction_score 
+            + work_score
+            + stake_score;
+        
+        info!("   Score breakdown: validators={}, identities={}, txs={}, work={}, stake={} → total={}",
+              validator_score, identity_score, transaction_score, work_score, stake_score, total_score);
+        
+        total_score
+    }
+    
+    /// Check if two networks are compatible enough to merge safely
+    /// Prevents merging chains that are too different in size or age
+    fn are_networks_compatible(local: &ChainSummary, imported: &ChainSummary) -> bool {
+        // Both are genesis-only chains - always compatible (just started)
+        if Self::is_genesis_only_chain(local) && Self::is_genesis_only_chain(imported) {
+            return true;
+        }
+        
+        // One is genesis-only - always compatible (new node joining network)
+        if Self::is_genesis_only_chain(local) || Self::is_genesis_only_chain(imported) {
+            return true;
+        }
+        
+        // Both are established networks - apply compatibility checks
+        
+        // Check 1: Neither network can be TOO small (minimum viable network)
+        // A network with < 3 validators is vulnerable and shouldn't dictate merge direction
+        let min_validators_for_merge = 3;
+        if local.validator_count < min_validators_for_merge 
+            && imported.validator_count < min_validators_for_merge {
+            info!("   ⚠️  Both networks have < {} validators - allowing merge", min_validators_for_merge);
+            return true; // Both are small, allow merge
+        }
+        
+        // Check 2: Age difference shouldn't be extreme (prevents ancient chain from dominating)
+        // Allow up to 1 year age difference (365 days * 24 hours * 3600 seconds)
+        let max_age_difference_seconds = 365 * 24 * 3600;
+        let age_difference = if local.genesis_timestamp > imported.genesis_timestamp {
+            local.genesis_timestamp - imported.genesis_timestamp
+        } else {
+            imported.genesis_timestamp - local.genesis_timestamp
+        };
+        
+        if age_difference > max_age_difference_seconds {
+            info!("   ⚠️  Age difference too large: {} days (max 365 days)", 
+                  age_difference / (24 * 3600));
+            return false; // Too different in age
+        }
+        
+        // Check 3: Size disparity shouldn't be extreme (prevents tiny chain from absorbing huge one)
+        // Calculate size ratio (always > 1.0)
+        let size_ratio = if local.total_identities > imported.total_identities {
+            local.total_identities as f64 / imported.total_identities.max(1) as f64
+        } else {
+            imported.total_identities as f64 / local.total_identities.max(1) as f64
+        };
+        
+        // Allow up to 100:1 size ratio (larger network can be up to 100x bigger)
+        let max_size_ratio = 100.0;
+        if size_ratio > max_size_ratio {
+            info!("   ⚠️  Size disparity too large: {:.1}:1 ratio (max {}:1)", 
+                  size_ratio, max_size_ratio);
+            return false; // One network is way too big compared to the other
+        }
+        
+        info!("   ✅ Networks are compatible: age_diff={}d, size_ratio={:.1}:1", 
+              age_difference / (24 * 3600), size_ratio);
+        
+        true // Networks are compatible
     }
     
     /// Decide if we should adopt imported chain despite genesis hash mismatch
     /// This handles the case where a new node created its own genesis, then discovered
     /// an existing network with real activity
+    /// DEPRECATED: Replaced by evaluate_genesis_mismatch() which uses score-based selection
     fn should_adopt_despite_genesis_mismatch(local: &ChainSummary, imported: &ChainSummary) -> bool {
         // Case 1: Local is genesis-only, imported has real activity
         if Self::is_genesis_only_chain(local) && !Self::is_genesis_only_chain(imported) {
