@@ -446,10 +446,15 @@ impl ChainEvaluator {
         let chain_age_seconds = chain.latest_timestamp.saturating_sub(chain.genesis_timestamp);
         let is_fresh = chain_age_seconds < 300; // Less than 5 minutes old
         
-        chain.height <= 1 
-            && chain.total_identities <= 1
-            && chain.total_transactions <= 2
-            && is_fresh
+        let height_check = chain.height <= 1;
+        let identity_check = chain.total_identities <= 1;
+        let tx_check = chain.total_transactions <= 2;
+        
+        info!("   🔍 Genesis-only check: height={} (<=1? {}), identities={} (<=1? {}), txs={} (<=2? {}), age={}s (fresh? {})",
+              chain.height, height_check, chain.total_identities, identity_check, 
+              chain.total_transactions, tx_check, chain_age_seconds, is_fresh);
+        
+        height_check && identity_check && tx_check && is_fresh
     }
     
     /// Decide if we should adopt imported chain despite genesis hash mismatch
