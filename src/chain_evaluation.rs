@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
+use tracing::info;
 
 /// Result of comparing two blockchain chains
 #[derive(Debug, Clone, PartialEq)]
@@ -76,6 +77,24 @@ impl ChainEvaluator {
         if Self::is_genesis_only_chain(local) && !Self::is_genesis_only_chain(imported) {
             // Local is empty, imported has real activity - adopt imported
             return ChainDecision::AdoptImported;
+        }
+        
+        // Rule 0b: CRITICAL - Both chains are genesis-only with different genesis hashes
+        // This happens when two nodes start simultaneously and discover each other.
+        // We must merge them to consolidate both validators into a single network.
+        if local.genesis_hash != imported.genesis_hash {
+            info!("🔍 Genesis hash mismatch detected during evaluation");
+            info!("   Local genesis:    {}", local.genesis_hash);
+            info!("   Imported genesis: {}", imported.genesis_hash);
+            
+            if Self::is_genesis_only_chain(local) && Self::is_genesis_only_chain(imported) {
+                info!("✅ Both chains are genesis-only - will merge to consolidate validators");
+                // Both chains are fresh genesis blocks - merge them
+                return ChainDecision::AdoptImported; // Will trigger genesis mismatch merge in blockchain.rs
+            } else {
+                info!("   Local genesis-only: {}", Self::is_genesis_only_chain(local));
+                info!("   Imported genesis-only: {}", Self::is_genesis_only_chain(imported));
+            }
         }
         
         // Rule 1: Genesis hash must match (same network)
