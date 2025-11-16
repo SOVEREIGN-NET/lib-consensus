@@ -6,7 +6,8 @@ pub mod proposals;
 pub mod voting;
 pub mod treasury;
 
-pub use dao_types::PrivacyLevel;
+// Re-export all DAO types
+pub use dao_types::*;
 pub use dao_engine::DaoEngine;
 pub use proposals::*;
 pub use voting::*;
