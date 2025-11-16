@@ -87,7 +87,7 @@ impl ChainEvaluator {
         // Use score-based evaluation to determine which chain should be the merge base
         // This prevents a 1000-validator network from being absorbed by a 5-validator network
         if local.genesis_hash != imported.genesis_hash {
-            info!("🔍 Genesis hash mismatch detected during evaluation");
+            info!(" Genesis hash mismatch detected during evaluation");
             info!("   Local genesis:    {}", local.genesis_hash);
             info!("   Imported genesis: {}", imported.genesis_hash);
             info!("   Local network: {} validators, {} identities, height {}", 
@@ -450,7 +450,7 @@ impl ChainEvaluator {
         let identity_check = chain.total_identities <= 1;
         let tx_check = chain.total_transactions <= 2;
         
-        info!("   🔍 Genesis-only check: height={} (<=1? {}), identities={} (<=1? {}), txs={} (<=2? {})",
+        info!("    Genesis-only check: height={} (<=1? {}), identities={} (<=1? {}), txs={} (<=2? {})",
               chain.height, height_check, chain.total_identities, identity_check, 
               chain.total_transactions, tx_check);
         
@@ -472,7 +472,7 @@ impl ChainEvaluator {
         
         // 2. Safety check - ensure networks are compatible enough to merge
         if !Self::are_networks_compatible(local, imported) {
-            info!("❌ Networks are incompatible - merge rejected for safety");
+            info!(" Networks are incompatible - merge rejected for safety");
             return ChainDecision::Reject;
         }
         
@@ -480,26 +480,26 @@ impl ChainEvaluator {
         // The weaker chain's unique content (identities, validators, UTXOs) will be
         // imported into the stronger chain to preserve all user data
         if imported_score > local_score {
-            info!("✅ Imported chain is stronger - will be used as merge base");
+            info!(" Imported chain is stronger - will be used as merge base");
             info!("   → Local identities and validators will be preserved");
             ChainDecision::AdoptImported
         } else if local_score > imported_score {
-            info!("✅ Local chain is stronger - will be used as merge base");
+            info!(" Local chain is stronger - will be used as merge base");
             info!("   → Imported identities and validators will be preserved");
             ChainDecision::AdoptLocal
         } else {
             // Exact tie - use genesis timestamp as tiebreaker (older = more established)
             info!("⚖️  Exact tie - using genesis timestamp tiebreaker");
             if imported.genesis_timestamp < local.genesis_timestamp {
-                info!("✅ Imported chain is older - will be used as merge base");
+                info!(" Imported chain is older - will be used as merge base");
                 ChainDecision::AdoptImported
             } else if local.genesis_timestamp < imported.genesis_timestamp {
-                info!("✅ Local chain is older - will be used as merge base");
+                info!(" Local chain is older - will be used as merge base");
                 ChainDecision::AdoptLocal
             } else {
                 // Extremely rare: same score AND same genesis timestamp
                 // Use genesis hash comparison as final deterministic tiebreaker
-                info!("⚠️  Perfect tie - using genesis hash comparison");
+                info!("  Perfect tie - using genesis hash comparison");
                 if imported.genesis_hash < local.genesis_hash {
                     ChainDecision::AdoptImported
                 } else {
@@ -552,7 +552,7 @@ impl ChainEvaluator {
         let min_validators_for_merge = 3;
         if local.validator_count < min_validators_for_merge 
             && imported.validator_count < min_validators_for_merge {
-            info!("   ⚠️  Both networks have < {} validators - allowing merge", min_validators_for_merge);
+            info!("     Both networks have < {} validators - allowing merge", min_validators_for_merge);
             return true; // Both are small, allow merge
         }
         
@@ -566,7 +566,7 @@ impl ChainEvaluator {
         };
         
         if age_difference > max_age_difference_seconds {
-            info!("   ⚠️  Age difference too large: {} days (max 365 days)", 
+            info!("     Age difference too large: {} days (max 365 days)", 
                   age_difference / (24 * 3600));
             return false; // Too different in age
         }
@@ -582,12 +582,12 @@ impl ChainEvaluator {
         // Allow up to 100:1 size ratio (larger network can be up to 100x bigger)
         let max_size_ratio = 100.0;
         if size_ratio > max_size_ratio {
-            info!("   ⚠️  Size disparity too large: {:.1}:1 ratio (max {}:1)", 
+            info!("     Size disparity too large: {:.1}:1 ratio (max {}:1)", 
                   size_ratio, max_size_ratio);
             return false; // One network is way too big compared to the other
         }
         
-        info!("   ✅ Networks are compatible: age_diff={}d, size_ratio={:.1}:1", 
+        info!("    Networks are compatible: age_diff={}d, size_ratio={:.1}:1", 
               age_difference / (24 * 3600), size_ratio);
         
         true // Networks are compatible
@@ -974,7 +974,7 @@ mod tests {
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&alice, &bob));
         assert!(ChainEvaluator::has_sufficient_validator_overlap(&alice, &bob));
         
-        println!("✅ Solo-to-Solo: Alice + Bob can merge");
+        println!(" Solo-to-Solo: Alice + Bob can merge");
     }
 
     #[test]
@@ -995,7 +995,7 @@ mod tests {
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&solo_charlie, &tiny_mesh));
         assert!(ChainEvaluator::has_sufficient_validator_overlap(&solo_charlie, &tiny_mesh));
         
-        println!("✅ Solo-to-Tiny: Charlie can join 4-person mesh");
+        println!(" Solo-to-Tiny: Charlie can join 4-person mesh");
     }
 
     #[test]
@@ -1016,7 +1016,7 @@ mod tests {
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&solo_dave, &small_community));
         assert!(ChainEvaluator::has_sufficient_validator_overlap(&solo_dave, &small_community));
         
-        println!("✅ Solo-to-Small: Dave can join 25-node community");
+        println!(" Solo-to-Small: Dave can join 25-node community");
     }
 
     #[test]
@@ -1038,7 +1038,7 @@ mod tests {
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&solo_eve, &enterprise));
         assert!(ChainEvaluator::has_sufficient_validator_overlap(&solo_eve, &enterprise));
         
-        println!("✅ Solo-to-Enterprise: Eve can join 500-node enterprise");
+        println!(" Solo-to-Enterprise: Eve can join 500-node enterprise");
     }
 
     #[test]
@@ -1059,7 +1059,7 @@ mod tests {
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&startup_a, &startup_b));
         assert!(ChainEvaluator::has_sufficient_validator_overlap(&startup_a, &startup_b));
         
-        println!("✅ Small-to-Small: 15-node + 20-node startups can merge");
+        println!(" Small-to-Small: 15-node + 20-node startups can merge");
     }
 
     #[test]
@@ -1081,7 +1081,7 @@ mod tests {
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&small_business, &large_corp));
         assert!(ChainEvaluator::has_sufficient_validator_overlap(&small_business, &large_corp));
         
-        println!("✅ Small-to-Large: 12-node business can join 300-node corp");
+        println!(" Small-to-Large: 12-node business can join 300-node corp");
     }
 
     #[test]
@@ -1101,7 +1101,7 @@ mod tests {
         // Should fail - small network needs at least 1 bridge
         assert!(!ChainEvaluator::validate_bft_bridge_requirements(&inadequate_small, &large_network));
         
-        println!("❌ Small-to-Large BLOCKED: 8-node network needs 1 bridge minimum");
+        println!(" Small-to-Large BLOCKED: 8-node network needs 1 bridge minimum");
     }
 
     #[test]
@@ -1124,7 +1124,7 @@ mod tests {
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&tech_giant_a, &tech_giant_b));
         assert!(ChainEvaluator::has_sufficient_validator_overlap(&tech_giant_a, &tech_giant_b));
         
-        println!("✅ Large-to-Large: 400-node + 500-node tech giants can merge");
+        println!(" Large-to-Large: 400-node + 500-node tech giants can merge");
     }
 
     #[test]
@@ -1146,7 +1146,7 @@ mod tests {
         // Should fail - both lack adequate bridge infrastructure
         assert!(!ChainEvaluator::validate_bft_bridge_requirements(&corp_a, &corp_b));
         
-        println!("❌ Large-to-Large BLOCKED: Both corps need more bridge infrastructure");
+        println!(" Large-to-Large BLOCKED: Both corps need more bridge infrastructure");
     }
 
     #[test]
@@ -1169,7 +1169,7 @@ mod tests {
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&mega_corp_a, &mega_corp_b));
         assert!(ChainEvaluator::has_sufficient_validator_overlap(&mega_corp_a, &mega_corp_b));
         
-        println!("✅ Massive-to-Massive: 1000-node + 1200-node mega-corps can merge");
+        println!(" Massive-to-Massive: 1000-node + 1200-node mega-corps can merge");
     }
 
     #[test]
@@ -1195,7 +1195,7 @@ mod tests {
         high_freq_network.bridge_node_count = 25; // Now adequate for 50k TPS
         assert!(ChainEvaluator::validate_bft_bridge_requirements(&high_freq_network, &normal_network));
         
-        println!("✅ Throughput Edge Case: High-TPS network needs adequate bridges");
+        println!(" Throughput Edge Case: High-TPS network needs adequate bridges");
     }
 
     #[test]
@@ -1226,6 +1226,6 @@ mod tests {
         
         assert!(!ChainEvaluator::has_sufficient_validator_overlap(&network_a, &network_b));
         
-        println!("✅ Validator Overlap: Small meshes easier, large meshes stricter");
+        println!(" Validator Overlap: Small meshes easier, large meshes stricter");
     }
 }

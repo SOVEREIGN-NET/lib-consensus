@@ -46,7 +46,7 @@ The ZHTP Consensus System is a sophisticated, modular consensus mechanism design
 - [Security Model](./architecture/security_model.md) - Threat model and mitigations
 - [Performance Characteristics](./architecture/performance.md) - Scalability and throughput analysis
 
-### [🔧 API Reference](./api/)
+### [ API Reference](./api/)
 - [Main API](./api/README.md) - Complete API reference with examples
 - [Consensus Engine API](./api/consensus_engine.md) - Core consensus operations
 - [Validator API](./api/validator_api.md) - Validator management operations

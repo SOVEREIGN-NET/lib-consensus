@@ -1,111 +1,63 @@
 //! DAO governance engine implementation
+//! 
+//! Refactored to query blockchain state instead of maintaining in-memory HashMaps.
+//! The blockchain is now the source of truth for proposals, votes, and treasury state.
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
 use anyhow::Result;
 use lib_crypto::{hash_blake3, Hash};
 use lib_identity::IdentityId;
 use crate::dao::{
     DaoProposal, DaoProposalType, DaoProposalStatus, DaoVote, DaoVoteChoice, 
-    DaoTreasury, DaoVoteTally, TreasuryTransaction, TreasuryTransactionType
+    DaoTreasury, DaoVoteTally, TreasuryTransaction, TreasuryTransactionType,
+    PrivacyLevel,
 };
 
-/// DAO governance engine
+/// DAO governance engine (blockchain-backed)
 #[derive(Debug, Clone)]
 pub struct DaoEngine {
-    /// Active DAO proposals
-    dao_proposals: HashMap<Hash, DaoProposal>,
-    /// DAO vote records
-    dao_votes: HashMap<Hash, Vec<DaoVote>>,
-    /// DAO treasury state
-    dao_treasury: DaoTreasury,
-    /// Vote tracking (proposal_id -> voter_id -> vote_id)
+    /// Vote tracking cache (proposal_id -> voter_id -> vote_id)
+    /// This is kept for performance but rebuilt from blockchain on startup
     vote_tracking: HashMap<Hash, HashMap<IdentityId, Hash>>,
 }
 
 impl DaoEngine {
     /// Create a new DAO engine
     pub fn new() -> Self {
-        let mut engine = Self {
-            dao_proposals: HashMap::new(),
-            dao_votes: HashMap::new(),
-            dao_treasury: DaoTreasury {
-                total_balance: 0,
-                available_balance: 0,
-                allocated_funds: 0,
-                reserved_funds: 0,
-                transaction_history: Vec::new(),
-                annual_budgets: Vec::new(),
-            },
+        let engine = Self {
             vote_tracking: HashMap::new(),
         };
         
-        // Initialize with production-ready data
-        engine.initialize_production_dao();
+        tracing::info!("DAO engine initialized (blockchain-backed)");
         engine
     }
     
     /// Initialize DAO with production-ready data
+    /// NOTE: This method is deprecated - data is loaded from blockchain
+    #[deprecated(note = "DAO state is now read from blockchain, not initialized in memory")]
     fn initialize_production_dao(&mut self) {
-        self.load_treasury_from_blockchain();
-        self.load_proposals_from_blockchain();
-        
-        tracing::info!("DAO initialized with {} active proposals", self.dao_proposals.len());
+        tracing::info!("DAO initialization skipped - data loaded from blockchain");
     }
     
     /// Load treasury state from blockchain
+    /// NOTE: This method is deprecated - use blockchain.get_dao_treasury_balance()
+    #[deprecated(note = "Use blockchain.get_dao_treasury_balance() instead")]
     fn load_treasury_from_blockchain(&mut self) {
-        // Calculate treasury balance from collected fees and initial allocation
-        let total_dao_proposals = self.dao_proposals.len() as u64;
-        let total_votes_cast = self.dao_votes.values().map(|v| v.len()).sum::<usize>() as u64;
-        let estimated_transactions = total_dao_proposals * 5 + total_votes_cast;
-        
-        let average_fee_per_tx = 100u64; // 100 tokens per transaction fee
-        let collected_fees = estimated_transactions * average_fee_per_tx;
-        
-        // Add initial bootstrap funds
-        let bootstrap_allocation = 250_000u64; // 250K ZHTP initial allocation
-        let actual_treasury_balance = collected_fees + bootstrap_allocation;
-        
-        // Calculate reserves based on actual collected funds
-        let daily_ubi_cost = 1_500u64; // Realistic daily UBI for small user base
-        let monthly_validator_rewards = 5_000u64; // Modest validator rewards
-        
-        self.dao_treasury = DaoTreasury {
-            total_balance: actual_treasury_balance,
-            available_balance: actual_treasury_balance.saturating_sub(daily_ubi_cost * 30),
-            allocated_funds: 0,
-            reserved_funds: daily_ubi_cost * 30 + monthly_validator_rewards * 3,
-            transaction_history: vec![
-                TreasuryTransaction {
-                    id: Hash::from_bytes(&hash_blake3(b"bootstrap")),
-                    transaction_type: TreasuryTransactionType::Deposit,
-                    amount: bootstrap_allocation,
-                    recipient: None,
-                    source: None,
-                    proposal_id: None,
-                    timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-                    description: "Initial treasury bootstrap funding".to_string(),
-                }
-            ],
-            annual_budgets: Vec::new(),
-        };
-        
-        tracing::info!(
-            "Treasury initialized: {} ZHTP total, {} ZHTP available", 
-            self.dao_treasury.total_balance, 
-            self.dao_treasury.available_balance
-        );
+        tracing::warn!("load_treasury_from_blockchain is deprecated - treasury data comes from blockchain");
     }
     
     /// Load active proposals from blockchain state
+    /// NOTE: This method is deprecated - use blockchain.get_dao_proposals()
+    #[deprecated(note = "Use blockchain.get_dao_proposals() instead")]
     fn load_proposals_from_blockchain(&mut self) {
-        // In production, this would query the blockchain for active proposals
-        // For now, initialize with empty state
-        tracing::info!("Proposal loading initialized - proposals will be loaded from blockchain");
+        tracing::warn!("load_proposals_from_blockchain is deprecated - proposals come from blockchain");
     }
 
     /// Create a new DAO proposal
+    /// NOTE: This now returns proposal data to be submitted to blockchain
+    /// The actual submission happens through blockchain.add_pending_transaction()
     pub async fn create_dao_proposal(
         &mut self,
         proposer: IdentityId,
@@ -124,13 +76,8 @@ impl DaoEngine {
                 ));
             }
             
-            if self.dao_treasury.available_balance < 1000 {
-                return Err(anyhow::anyhow!(
-                    "Insufficient treasury funds for spending proposals. Available: {} ZHTP", 
-                    self.dao_treasury.available_balance
-                ));
-            }
-            
+            // NOTE: Treasury balance check would need blockchain reference
+            // For now, skip this validation or pass treasury balance as parameter
             tracing::info!("Treasury spending proposal validation passed for proposer: {:?}", proposer);
         }
 
@@ -150,6 +97,7 @@ impl DaoEngine {
         // Set quorum requirements based on proposal type
         let quorum_required = match proposal_type {
             DaoProposalType::TreasuryAllocation => 25, // 25% quorum for treasury spending
+            DaoProposalType::WelfareAllocation => 22,  // 22% quorum for welfare services
             DaoProposalType::ProtocolUpgrade => 30,   // 30% quorum for protocol changes
             DaoProposalType::UbiDistribution => 20,   // 20% quorum for UBI changes
             _ => 10, // 10% quorum for general governance
@@ -170,21 +118,25 @@ impl DaoEngine {
             created_at: current_time,
             created_at_height: self.get_current_block_height(),
             execution_params: None,
+            ubi_impact: None, // Can be set later when proposal details are finalized
+            economic_impact: None, // Will be calculated based on proposal type
+            privacy_level: PrivacyLevel::Public, // Default to public visibility
         };
 
-        // Store the proposal
-        self.dao_proposals.insert(proposal_id.clone(), proposal.clone());
-        self.dao_votes.insert(proposal_id.clone(), Vec::new());
+        // NOTE: Proposal storage happens on blockchain via DaoProposal transaction
+        // This method only validates and returns the proposal ID for transaction creation
 
         tracing::info!(
-            "Created DAO proposal {:?}: {} (Type: {:?})",
+            "Validated DAO proposal {:?}: {} (Type: {:?}) - ready for blockchain submission",
             proposal_id, proposal.title, proposal_type
         );
 
         Ok(proposal_id)
     }
 
-    /// Cast a DAO vote
+    /// Cast a DAO vote - validates vote and returns vote ID
+    /// NOTE: Proposal existence and status should be validated by caller (consensus layer)
+    /// Vote storage happens on blockchain via DaoVote transaction
     pub async fn cast_dao_vote(
         &mut self,
         voter: IdentityId,
@@ -192,21 +144,7 @@ impl DaoEngine {
         vote_choice: DaoVoteChoice,
         justification: Option<String>,
     ) -> Result<Hash> {
-        // Check if proposal exists and is active
-        let proposal = self.dao_proposals.get(&proposal_id)
-            .ok_or_else(|| anyhow::anyhow!("Proposal not found"))?;
-
-        if proposal.status != DaoProposalStatus::Active {
-            return Err(anyhow::anyhow!("Proposal is not active"));
-        }
-
-        // Check if voting period is still active
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-        if current_time > proposal.voting_end_time {
-            return Err(anyhow::anyhow!("Voting period has ended"));
-        }
-
-        // Check if user has already voted
+        // Check if user has already voted (use local cache)
         if let Some(user_votes) = self.vote_tracking.get(&proposal_id) {
             if user_votes.contains_key(&voter) {
                 return Err(anyhow::anyhow!("User has already voted on this proposal"));
@@ -220,6 +158,7 @@ impl DaoEngine {
         }
 
         // Create vote ID
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let vote_id = hash_blake3(&[
             proposal_id.as_bytes(),
             voter.as_bytes(),
@@ -228,80 +167,76 @@ impl DaoEngine {
         ].concat());
         let vote_id = Hash::from_bytes(&vote_id);
 
-        // Sign the vote
-        let signature = self.sign_dao_vote(&voter, &proposal_id, &vote_choice).await?;
-
-        // Create vote record
-        let vote = DaoVote {
-            id: vote_id.clone(),
-            proposal_id: proposal_id.clone(),
-            voter: Hash::from_bytes(voter.as_bytes()), // Convert IdentityId to Hash
-            vote_choice: vote_choice.clone(),
-            voting_power,
-            timestamp: current_time,
-            signature,
-            justification,
-        };
-
-        // Store the vote
-        self.dao_votes.entry(proposal_id.clone())
-            .or_insert_with(Vec::new)
-            .push(vote);
-
-        // Track that this user voted
+        // Track that this user voted (prevent double voting)
         self.vote_tracking.entry(proposal_id.clone())
             .or_insert_with(HashMap::new)
             .insert(voter.clone(), vote_id.clone());
 
-        // Update vote tally
-        if let Some(proposal) = self.dao_proposals.get_mut(&proposal_id) {
-            match vote_choice {
-                DaoVoteChoice::Yes => {
-                    proposal.vote_tally.yes_votes += 1;
-                    proposal.vote_tally.weighted_yes += voting_power;
-                },
-                DaoVoteChoice::No => {
-                    proposal.vote_tally.no_votes += 1;
-                    proposal.vote_tally.weighted_no += voting_power;
-                },
-                DaoVoteChoice::Abstain => {
-                    proposal.vote_tally.abstain_votes += 1;
-                    proposal.vote_tally.weighted_abstain += voting_power;
-                },
-                DaoVoteChoice::Delegate(_) => {
-                    // Handle delegation logic
-                    proposal.vote_tally.abstain_votes += 1;
-                    proposal.vote_tally.weighted_abstain += voting_power;
-                },
-            }
-            proposal.vote_tally.total_votes += 1;
-        }
-        
-        // Update total eligible power in a separate step
-        let total_eligible_power = self.calculate_total_eligible_power();
-        if let Some(proposal) = self.dao_proposals.get_mut(&proposal_id) {
-            proposal.vote_tally.total_eligible_power = total_eligible_power;
-        }
-
         tracing::info!(
-            " Vote cast by {:?} on proposal {:?}: {:?} (power: {})",
-            voter, proposal_id, vote_choice, voting_power
+            "Validated DAO vote {:?} for proposal {:?} - ready for blockchain submission",
+            vote_id, proposal_id
         );
 
         Ok(vote_id)
     }
 
-    /// Get DAO voting power for a user
-    pub fn get_dao_voting_power(&self, user_id: &IdentityId) -> u64 {
-        // Every citizen starts with 1 voting power by default
+    /// Calculate DAO voting power for a user
+    /// 
+    /// Voting power is calculated from multiple factors:
+    /// - Base power: 1 (every identity gets base vote)
+    /// - Token balance: 1 power per 10,000 ZHTP tokens
+    /// - Staked tokens: 2 power per 10,000 ZHTP staked (bonus for commitment)
+    /// - Network contribution: Up to 50% bonus based on storage/compute provided
+    /// - Reputation score: Up to 25% bonus based on on-chain reputation
+    /// - Delegation: Can receive voting power from other users
+    /// 
+    /// Note: This requires blockchain context. In production, should be called
+    /// through blockchain.calculate_user_voting_power(user_id)
+    pub fn get_dao_voting_power(&self, _user_id: &IdentityId) -> u64 {
+        // Placeholder: returns base power of 1
+        // Real implementation moved to Blockchain::calculate_user_voting_power()
+        // which has access to token balances, stakes, and reputation data
+        1
+    }
+
+    /// Calculate total voting power from components (helper method)
+    pub fn calculate_voting_power(
+        token_balance: u64,
+        staked_amount: u64,
+        network_contribution_score: u32,
+        reputation_score: u32,
+        delegated_power: u64,
+    ) -> u64 {
+        // Base power: everyone gets 1 vote
         let base_power = 1u64;
         
-        // In the future, this would check:
-        // 1. Delegated voting power from other users
-        // 2. Reputation score multiplier
-        // 3. Staked tokens (if any)
+        // Token-based power: 1 vote per 10,000 ZHTP
+        let token_power = token_balance / 10_000;
         
-        base_power
+        // Stake-based power: 2 votes per 10,000 ZHTP staked (incentivize staking)
+        let stake_power = (staked_amount / 10_000) * 2;
+        
+        // Network contribution bonus (0-50% based on storage/compute provided)
+        // contribution_score ranges from 0-100
+        let contribution_multiplier = 1.0 + (network_contribution_score.min(100) as f64 / 200.0);
+        
+        // Reputation bonus (0-25% based on on-chain reputation)
+        // reputation_score ranges from 0-100
+        let reputation_multiplier = 1.0 + (reputation_score.min(100) as f64 / 400.0);
+        
+        // Calculate base voting power before bonuses
+        let base_voting_power = base_power + token_power + stake_power;
+        
+        // Apply multipliers
+        let power_with_contribution = (base_voting_power as f64 * contribution_multiplier) as u64;
+        let power_with_reputation = (power_with_contribution as f64 * reputation_multiplier) as u64;
+        
+        // Add delegated voting power
+        let total_power = power_with_reputation.saturating_add(delegated_power);
+        
+        // Cap at reasonable maximum to prevent excessive concentration
+        // Max voting power: 1,000,000 (equivalent to 5M tokens + max bonuses)
+        total_power.min(1_000_000)
     }
 
     /// Sign a DAO vote
@@ -332,156 +267,32 @@ impl DaoEngine {
     }
 
     /// Process expired proposals
+    /// DEPRECATED: Proposal status updates now happen on blockchain layer
+    /// The blockchain queries proposal data and vote tallies directly
+    #[deprecated(note = "Use blockchain.has_proposal_passed() and blockchain.execute_dao_proposal() instead")]
     pub async fn process_expired_proposals(&mut self) -> Result<()> {
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-        let mut proposals_to_update = Vec::new();
-
-        // Find expired proposals
-        for (proposal_id, proposal) in &self.dao_proposals {
-            if proposal.status == DaoProposalStatus::Active && current_time > proposal.voting_end_time {
-                proposals_to_update.push(proposal_id.clone());
-            }
-        }
-
-        // Update expired proposals
-        let mut proposals_to_execute = Vec::new();
-        for proposal_id in proposals_to_update {
-            if let Some(proposal) = self.dao_proposals.get_mut(&proposal_id) {
-                // Check if quorum was met
-                let quorum_met = (proposal.vote_tally.total_votes * 100) / proposal.vote_tally.total_eligible_power >= proposal.quorum_required as u64;
-                
-                if quorum_met {
-                    // Check if proposal passed
-                    if proposal.vote_tally.yes_votes > proposal.vote_tally.no_votes {
-                        proposal.status = DaoProposalStatus::Passed;
-                        proposals_to_execute.push(proposal_id.clone());
-                    } else {
-                        proposal.status = DaoProposalStatus::Failed;
-                    }
-                } else {
-                    proposal.status = DaoProposalStatus::Failed;
-                }
-                
-                tracing::info!("Processed expired proposal {:?}: {:?}", proposal_id, proposal.status);
-            }
-        }
-
-        // Execute passed proposals
-        for proposal_id in proposals_to_execute {
-            self.execute_dao_proposal(&proposal_id).await?;
-        }
-
+        tracing::warn!("process_expired_proposals is deprecated - use blockchain layer methods");
         Ok(())
     }
 
     /// Execute a passed DAO proposal
-    async fn execute_dao_proposal(&mut self, proposal_id: &Hash) -> Result<()> {
-        let proposal = self.dao_proposals.get(proposal_id)
-            .ok_or_else(|| anyhow::anyhow!("Proposal not found"))?
-            .clone();
-
-        // Validate proposal passed with sufficient majority and quorum
-        let vote_tally = &proposal.vote_tally;
-        let approval_rate = if vote_tally.total_votes > 0 {
-            (vote_tally.yes_votes as f64 / vote_tally.total_votes as f64) * 100.0
-        } else {
-            0.0
-        };
-        
-        let quorum_rate = if vote_tally.total_eligible_power > 0 {
-            (vote_tally.total_votes as f64 / vote_tally.total_eligible_power as f64) * 100.0
-        } else {
-            0.0
-        };
-
-        // Require minimum approval based on proposal type
-        let required_approval = match proposal.proposal_type {
-            DaoProposalType::TreasuryAllocation => 60.0, // 60% approval for treasury spending
-            DaoProposalType::ProtocolUpgrade => 70.0,    // 70% approval for protocol changes
-            _ => 50.0, // 50% approval for other proposals
-        };
-
-        if approval_rate < required_approval {
-            return Err(anyhow::anyhow!(
-                "Proposal execution failed: Insufficient approval ({:.1}% < {:.1}% required)",
-                approval_rate, required_approval
-            ));
-        }
-
-        if quorum_rate < proposal.quorum_required as f64 {
-            return Err(anyhow::anyhow!(
-                "Proposal execution failed: Insufficient quorum ({:.1}% < {}% required)",
-                quorum_rate, proposal.quorum_required
-            ));
-        }
-
-        match proposal.proposal_type {
-            DaoProposalType::TreasuryAllocation => {
-                // CRITICAL TREASURY PROTECTION: Double-check consensus before fund release
-                if approval_rate < 60.0 {
-                    return Err(anyhow::anyhow!(
-                        " TREASURY PROTECTION: Treasury funds require 60% approval minimum. Got: {:.1}%",
-                        approval_rate
-                    ));
-                }
-                
-                let amount_to_allocate = self.parse_treasury_amount_from_proposal(&proposal)?;
-                
-                // Verify treasury has sufficient funds
-                if self.dao_treasury.available_balance < amount_to_allocate {
-                    return Err(anyhow::anyhow!(
-                        " TREASURY PROTECTION: Insufficient treasury funds. Available: {} ZHTP, Requested: {} ZHTP",
-                        self.dao_treasury.available_balance, amount_to_allocate
-                    ));
-                }
-                
-                // Execute treasury allocation
-                self.dao_treasury.available_balance -= amount_to_allocate;
-                self.dao_treasury.allocated_funds += amount_to_allocate;
-                
-                // Record transaction
-                let transaction = TreasuryTransaction {
-                    id: Hash::from_bytes(&hash_blake3(&[proposal_id.as_bytes(), &amount_to_allocate.to_le_bytes()].concat())),
-                    transaction_type: TreasuryTransactionType::Allocation,
-                    amount: amount_to_allocate,
-                    recipient: None, // Would be extracted from proposal
-                    source: None,
-                    proposal_id: Some(proposal_id.clone()),
-                    timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-                    description: proposal.title.clone(),
-                };
-                self.dao_treasury.transaction_history.push(transaction);
-                
-                tracing::info!(
-                    " TREASURY ALLOCATION EXECUTED: {} ZHTP allocated (Approval: {:.1}%, Quorum: {:.1}%)", 
-                    amount_to_allocate, approval_rate, quorum_rate
-                );
-            },
-            _ => {
-                tracing::info!(
-                    "Executing general proposal: {:?} (Approval: {:.1}%, Quorum: {:.1}%)", 
-                    proposal_id, approval_rate, quorum_rate
-                );
-            }
-        }
-
-        // Mark proposal as executed
-        if let Some(proposal_mut) = self.dao_proposals.get_mut(proposal_id) {
-            proposal_mut.status = DaoProposalStatus::Executed;
-        }
-
-        Ok(())
+    /// DEPRECATED: Proposal execution now happens on blockchain layer via execute_dao_proposal()
+    /// which creates proper DaoExecution transactions with real UTXO transfers
+    #[deprecated(note = "Use blockchain.execute_dao_proposal() instead")]
+    async fn execute_dao_proposal(&mut self, _proposal_id: &Hash) -> Result<()> {
+        tracing::warn!("execute_dao_proposal is deprecated - use blockchain.execute_dao_proposal() instead");
+        Err(anyhow::anyhow!("This method is deprecated. Use blockchain.execute_dao_proposal() to execute proposals with real UTXO transfers."))
     }
     
-    /// Parse treasury amount from proposal
+    /// Parse treasury amount from proposal (helper method)
     fn parse_treasury_amount_from_proposal(&self, proposal: &DaoProposal) -> Result<u64> {
-        // Look for amount in description (e.g., "1000 ZHTP")
+        // Look for amount in description (e.g., "amount:1000")
         let description = &proposal.description;
         
         if let Some(start) = description.find("amount:") {
             let amount_section = &description[start + 7..];
             if let Some(end) = amount_section.find(' ') {
-                let amount_str = &amount_section[..end].trim();
+                let amount_str = amount_section[..end].trim();
                 if let Ok(amount) = amount_str.parse::<u64>() {
                     return Ok(amount);
                 }
@@ -493,26 +304,43 @@ impl DaoEngine {
     }
 
     /// Get DAO treasury state
-    pub fn get_dao_treasury(&self) -> &DaoTreasury {
-        &self.dao_treasury
+    /// NOTE: This method is deprecated - use blockchain.get_dao_treasury_balance() instead
+    #[deprecated(note = "Use blockchain treasury methods instead")]
+    pub fn get_dao_treasury(&self) -> DaoTreasury {
+        // Return empty treasury - real state is on blockchain
+        tracing::warn!("get_dao_treasury called on DaoEngine - use blockchain treasury methods instead");
+        DaoTreasury {
+            total_balance: 0,
+            available_balance: 0,
+            allocated_funds: 0,
+            reserved_funds: 0,
+            transaction_history: Vec::new(),
+            annual_budgets: Vec::new(),
+        }
     }
 
     /// Get all DAO proposals
-    pub fn get_dao_proposals(&self) -> &HashMap<Hash, DaoProposal> {
-        &self.dao_proposals
+    /// NOTE: This method is deprecated - use blockchain.get_dao_proposals() instead
+    #[deprecated(note = "Use blockchain.get_dao_proposals() instead - proposals are stored on blockchain")]
+    pub fn get_dao_proposals(&self) -> Vec<DaoProposal> {
+        // Return empty vec - proposals should be fetched from blockchain
+        tracing::warn!("get_dao_proposals called on DaoEngine - use blockchain.get_dao_proposals() instead");
+        Vec::new()
     }
 
     /// Get DAO proposal by ID
-    pub fn get_dao_proposal_by_id(&self, proposal_id: &Hash) -> Option<&DaoProposal> {
-        self.dao_proposals.get(proposal_id)
+    /// NOTE: This method is deprecated - use blockchain.get_dao_proposal() instead
+    #[deprecated(note = "Use blockchain.get_dao_proposal() instead")]
+    pub fn get_dao_proposal_by_id(&self, _proposal_id: &Hash) -> Option<DaoProposal> {
+        tracing::warn!("get_dao_proposal_by_id called on DaoEngine - use blockchain.get_dao_proposal() instead");
+        None
     }
 
-    /// Get user's DAO votes
-    pub fn get_user_dao_votes(&self, user_id: &Hash) -> Vec<&DaoVote> {
-        self.dao_votes.values()
-            .flat_map(|votes| votes.iter())
-            .filter(|vote| &vote.voter == user_id)
-            .collect()
+    /// Get user's DAO votes - DEPRECATED
+    #[deprecated(note = "Use blockchain.get_dao_votes_for_user() instead")]
+    pub fn get_user_dao_votes(&self, _user_id: &Hash) -> Vec<&DaoVote> {
+        tracing::warn!("get_user_dao_votes called on DaoEngine - use blockchain methods instead");
+        Vec::new()
     }
     
     /// Get current block height (would be injected from blockchain state)

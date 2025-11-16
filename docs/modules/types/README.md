@@ -485,7 +485,7 @@ impl ComputeResult {
 4. Validate cryptographic signature
 5. Ensure no double-spending of work
 
-## 🔧 Error Types
+##  Error Types
 
 ### ConsensusError
 
@@ -616,7 +616,7 @@ pub async fn validate_proposal(proposal: &ConsensusProposal) -> ConsensusResult<
 }
 ```
 
-## 🔄 Type Evolution
+##  Type Evolution
 
 The type system is designed for evolution:
 

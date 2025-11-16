@@ -606,7 +606,7 @@ impl VoteAggregator {
 }
 ```
 
-## 🔄 Hybrid Engine
+##  Hybrid Engine
 
 ### PoS + PoStorage Combination
 
@@ -704,7 +704,7 @@ impl HybridEngine {
         }
         
         tracing::info!(
-            "🔄 Adjusted consensus weights: stake={:.1}, storage={:.1}",
+            " Adjusted consensus weights: stake={:.1}, storage={:.1}",
             self.consensus_weights.stake_weight,
             self.consensus_weights.storage_weight
         );
@@ -868,7 +868,7 @@ impl ConsensusEngine {
 }
 ```
 
-## 🔧 Configuration and Tuning
+##  Configuration and Tuning
 
 ### Engine-Specific Configuration
 

@@ -140,13 +140,17 @@ impl ValidatorManager {
     
     /// Select proposer for a given height and round
     pub fn select_proposer(&self, height: u64, round: u32) -> Option<&Validator> {
-        let active_validators = self.get_active_validators();
+        let mut active_validators = self.get_active_validators();
         
         if active_validators.is_empty() {
             return None;
         }
         
-        // Simple round-robin selection based on height and round
+        // CRITICAL: Sort validators by identity bytes to ensure deterministic ordering
+        // HashMap iteration order is non-deterministic, so we must sort!
+        active_validators.sort_by(|a, b| a.identity.as_bytes().cmp(b.identity.as_bytes()));
+        
+        // Round-robin selection based on height and round (now deterministic)
         let index = ((height + round as u64) % active_validators.len() as u64) as usize;
         Some(active_validators[index])
     }
@@ -237,13 +241,27 @@ impl ValidatorManager {
     /// Check if we have enough validators for consensus
     pub fn has_sufficient_validators(&self) -> bool {
         let active_count = self.get_active_validators().len();
+        
         if self.development_mode {
-            // In development mode, allow single validator for testing
-            active_count >= 1
-        } else {
-            // Production mode requires minimum 4 validators for BFT
-            active_count >= 4
+            //  TESTING MODE: Allow single validator for development/testing
+            if active_count >= 1 {
+                if active_count < 4 {
+                    tracing::warn!(" TESTING MODE: {} validator(s) active (production requires minimum 4 for BFT)", active_count);
+                }
+                return true;
+            }
+            return false;
         }
+        
+        // Production mode: Require minimum 4 validators for Byzantine Fault Tolerance
+        // BFT needs at least 3f+1 validators where f is the number of Byzantine failures
+        // With 4 validators, we can tolerate 1 Byzantine failure: f=1, 3(1)+1=4
+        if active_count < 4 {
+            tracing::warn!(" INSUFFICIENT VALIDATORS: {} active (minimum 4 required for BFT)", active_count);
+            return false;
+        }
+        
+        true
     }
     
     /// Get validator statistics
