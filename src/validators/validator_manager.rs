@@ -6,6 +6,23 @@ use lib_identity::IdentityId;
 use crate::validators::Validator;
 use crate::types::{ValidatorStatus, SlashType};
 
+/// Trait for validator info structures that can be synced from blockchain
+/// 
+/// This allows ValidatorManager to sync from different validator data sources
+/// (blockchain registry, genesis config, etc.) without tight coupling.
+pub trait ValidatorInfo {
+    /// Get validator identity
+    fn identity_id(&self) -> IdentityId;
+    /// Get validator stake
+    fn stake(&self) -> u64;
+    /// Get storage provided
+    fn storage_provided(&self) -> u64;
+    /// Get consensus key
+    fn consensus_key(&self) -> Vec<u8>;
+    /// Get commission rate
+    fn commission_rate(&self) -> u8;
+}
+
 /// Manages the set of validators in the consensus system
 #[derive(Debug, Clone)]
 pub struct ValidatorManager {
@@ -264,6 +281,60 @@ impl ValidatorManager {
         true
     }
     
+    /// Synchronize validators from blockchain validator info
+    /// 
+    /// This method accepts a list of validator data structures and registers
+    /// any new validators that aren't already in the consensus layer.
+    /// 
+    /// Returns: (synced_count, skipped_count)
+    pub fn sync_from_validator_list<T>(&mut self, validators: Vec<T>) -> Result<(usize, usize)>
+    where
+        T: ValidatorInfo,
+    {
+        let mut synced_count = 0;
+        let mut skipped_count = 0;
+        
+        for validator_info in validators {
+            let identity_id = validator_info.identity_id();
+            
+            // Skip if already registered
+            if self.validators.contains_key(&identity_id) {
+                skipped_count += 1;
+                continue;
+            }
+            
+            // Register new validator (clone identity_id for use in logging after move)
+            let identity_id_for_log = identity_id.clone();
+            match self.register_validator(
+                identity_id,
+                validator_info.stake(),
+                validator_info.storage_provided(),
+                validator_info.consensus_key(),
+                validator_info.commission_rate(),
+            ) {
+                Ok(_) => {
+                    synced_count += 1;
+                    tracing::info!(
+                        "Synced validator {:?} (stake: {}, storage: {})",
+                        identity_id_for_log,
+                        validator_info.stake(),
+                        validator_info.storage_provided()
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to sync validator {:?}: {}", identity_id_for_log, e);
+                }
+            }
+        }
+        
+        tracing::info!(
+            "Validator sync complete: {} new, {} skipped",
+            synced_count, skipped_count
+        );
+        
+        Ok((synced_count, skipped_count))
+    }
+
     /// Get validator statistics
     pub fn get_validator_stats(&self) -> ValidatorStats {
         let active_count = self.get_active_validators().len();
